@@ -38,7 +38,7 @@ const Signup = () => {
     
     const success = await signup(name, email, password);
     if (success) {
-      navigate("/");
+      navigate("/dashboard");
     }
   };
 

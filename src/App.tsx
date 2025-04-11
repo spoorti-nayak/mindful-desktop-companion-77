@@ -13,8 +13,26 @@ import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
+import { useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
+
+// This component determines where to redirect the user based on auth state
+const RootRedirect = () => {
+  const { user, isLoading } = useAuth();
+  
+  // Show loading spinner while auth state is being determined
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  
+  // If user is logged in, redirect to dashboard, otherwise to welcome page
+  return <Navigate to={user ? "/dashboard" : "/welcome"} replace />;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -43,8 +61,8 @@ const App = () => (
               } 
             />
             
-            {/* Redirect root to welcome for new users */}
-            <Route path="/" element={<Navigate to="/welcome" replace />} />
+            {/* Root path conditionally redirects based on auth state */}
+            <Route path="/" element={<RootRedirect />} />
             
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
