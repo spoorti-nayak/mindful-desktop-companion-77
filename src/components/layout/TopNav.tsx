@@ -1,5 +1,5 @@
 
-import { Bell, Settings, Moon, Sun, User } from "lucide-react";
+import { Bell, Settings, Moon, Sun, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,9 +10,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function TopNav() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const { user, logout } = useAuth();
 
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
@@ -53,7 +55,10 @@ export function TopNav() {
             <DropdownMenuItem>Preferences</DropdownMenuItem>
             <DropdownMenuItem>Notifications</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Log out</DropdownMenuItem>
+            <DropdownMenuItem onClick={logout} className="text-destructive">
+              <LogOut className="h-4 w-4 mr-2" />
+              Log out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <Button variant="ghost" size="icon" className="rounded-full border">
