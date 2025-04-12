@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
 
       if (!foundUser) {
-        sonnerToast.error("Login failed", "Invalid email or password");
+        sonnerToast.error("Login failed: Invalid email or password");
         return false;
       }
 
@@ -54,10 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userWithoutPassword);
       localStorage.setItem("user", JSON.stringify(userWithoutPassword));
       
-      sonnerToast.success("Login successful", `Welcome back, ${foundUser.name}!`);
+      sonnerToast.success(`Welcome back, ${foundUser.name}!`);
       return true;
     } catch (error) {
-      sonnerToast.error("Login failed", "An error occurred during login");
+      sonnerToast.error("Login failed: An error occurred during login");
       return false;
     } finally {
       setIsLoading(false);
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Check if user already exists
       if (users.some((u: any) => u.email === email)) {
-        sonnerToast.error("Signup failed", "Email already in use");
+        sonnerToast.error("Signup failed: Email already in use");
         return false;
       }
 
@@ -91,10 +91,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userWithoutPassword);
       localStorage.setItem("user", JSON.stringify(userWithoutPassword));
       
-      sonnerToast.success("Signup successful", `Welcome, ${name}!`);
+      sonnerToast.success(`Welcome, ${name}!`);
       return true;
     } catch (error) {
-      sonnerToast.error("Signup failed", "An error occurred during signup");
+      sonnerToast.error("Signup failed: An error occurred during signup");
       return false;
     } finally {
       setIsLoading(false);
@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("user");
-    sonnerToast.success("Logged out", "You have been successfully logged out");
+    sonnerToast.success("You have been successfully logged out");
   };
 
   const forgotPassword = async (email: string): Promise<boolean> => {
@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const foundUser = users.find((u: any) => u.email === email);
       
       if (!foundUser) {
-        sonnerToast.error("Reset failed", "No account found with this email");
+        sonnerToast.error("Reset failed: No account found with this email");
         return false;
       }
       
@@ -133,10 +133,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Simulate email sending
       console.log(`Reset code for ${email}: ${resetCode}`);
-      sonnerToast.success("Reset code sent", "Check your email (or console) for the reset code");
+      sonnerToast.success("Reset code sent: Check your email (or console) for the reset code");
       return true;
     } catch (error) {
-      sonnerToast.error("Reset failed", "An error occurred");
+      sonnerToast.error("Reset failed: An error occurred");
       return false;
     } finally {
       setIsLoading(false);
@@ -153,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       
       if (!validRequest) {
-        sonnerToast.error("Reset failed", "Invalid or expired reset code");
+        sonnerToast.error("Reset failed: Invalid or expired reset code");
         return false;
       }
       
@@ -162,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userIndex = users.findIndex((u: any) => u.email === email);
       
       if (userIndex === -1) {
-        sonnerToast.error("Reset failed", "User not found");
+        sonnerToast.error("Reset failed: User not found");
         return false;
       }
       
@@ -175,10 +175,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       localStorage.setItem("resetRequests", JSON.stringify(newResetRequests));
       
-      sonnerToast.success("Password reset successful", "You can now login with your new password");
+      sonnerToast.success("Password reset successful: You can now login with your new password");
       return true;
     } catch (error) {
-      sonnerToast.error("Reset failed", "An error occurred");
+      sonnerToast.error("Reset failed: An error occurred");
       return false;
     } finally {
       setIsLoading(false);
