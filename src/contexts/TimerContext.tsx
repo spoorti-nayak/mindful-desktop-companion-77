@@ -2,6 +2,13 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
 
+interface TimerSettings {
+  pomodoroDuration: number;
+  pomodoroBreakDuration: number;
+  eyeCareWorkDuration: number;
+  eyeCareRestDuration: number;
+}
+
 interface TimerContextState {
   // Pomodoro Timer state
   pomodoroMinutes: number;
@@ -28,6 +35,9 @@ interface TimerContextState {
   startEyeCareTimer: () => void;
   pauseEyeCareTimer: () => void;
   resetEyeCareTimer: () => void;
+  
+  // Settings functions
+  updateTimerSettings: (settings: TimerSettings) => void;
 }
 
 const TimerContext = createContext<TimerContextState | undefined>(undefined);
@@ -56,11 +66,11 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     const saved = localStorage.getItem("pomodoroProgress");
     return saved ? parseFloat(saved) : 100;
   });
-  const [pomodoroDuration] = useState(() => {
+  const [pomodoroDuration, setPomodoroDuration] = useState(() => {
     const saved = localStorage.getItem("pomodoroDuration");
     return saved ? parseInt(saved) : 25;
   });
-  const [pomodoroBreakDuration] = useState(() => {
+  const [pomodoroBreakDuration, setPomodoroBreakDuration] = useState(() => {
     const saved = localStorage.getItem("pomodoroBreakDuration");
     return saved ? parseInt(saved) : 5;
   });
@@ -82,8 +92,14 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     const saved = localStorage.getItem("eyeCareRestProgress");
     return saved ? parseFloat(saved) : 0;
   });
-  const [eyeCareWorkDuration] = useState(20 * 60); // 20 minutes
-  const [eyeCareRestDuration] = useState(20); // 20 seconds
+  const [eyeCareWorkDuration, setEyeCareWorkDuration] = useState(() => {
+    const saved = localStorage.getItem("eyeCareWorkDuration");
+    return saved ? parseInt(saved) : 20 * 60; // Default: 20 minutes
+  });
+  const [eyeCareRestDuration, setEyeCareRestDuration] = useState(() => {
+    const saved = localStorage.getItem("eyeCareRestDuration");
+    return saved ? parseInt(saved) : 20; // Default: 20 seconds
+  });
 
   // Save Pomodoro state to localStorage
   useEffect(() => {
@@ -102,7 +118,29 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("isEyeCareActive", isEyeCareActive.toString());
     localStorage.setItem("isEyeCareResting", isEyeCareResting.toString());
     localStorage.setItem("eyeCareRestProgress", eyeCareRestProgress.toString());
-  }, [eyeCareTimeElapsed, isEyeCareActive, isEyeCareResting, eyeCareRestProgress]);
+    localStorage.setItem("eyeCareWorkDuration", eyeCareWorkDuration.toString());
+    localStorage.setItem("eyeCareRestDuration", eyeCareRestDuration.toString());
+  }, [eyeCareTimeElapsed, isEyeCareActive, isEyeCareResting, eyeCareRestProgress, eyeCareWorkDuration, eyeCareRestDuration]);
+
+  // Function to update timer settings
+  const updateTimerSettings = (settings: TimerSettings) => {
+    // Update Pomodoro settings
+    setPomodoroDuration(settings.pomodoroDuration);
+    setPomodoroBreakDuration(settings.pomodoroBreakDuration);
+    
+    // Update Eye Care settings
+    setEyeCareWorkDuration(settings.eyeCareWorkDuration);
+    setEyeCareRestDuration(settings.eyeCareRestDuration);
+    
+    // Reset timers with new durations
+    if (!isPomodoroActive) {
+      resetPomodoroTimer(isPomodoroBreak);
+    }
+    
+    if (!isEyeCareActive) {
+      resetEyeCareTimer();
+    }
+  };
 
   // Pomodoro Timer Logic
   useEffect(() => {
@@ -254,7 +292,10 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
       
       startEyeCareTimer,
       pauseEyeCareTimer,
-      resetEyeCareTimer
+      resetEyeCareTimer,
+      
+      // Settings functions
+      updateTimerSettings
     }}>
       {children}
     </TimerContext.Provider>

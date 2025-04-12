@@ -32,6 +32,7 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
   };
 
   const workProgress = ((eyeCareWorkDuration - eyeCareTimeElapsed) / eyeCareWorkDuration) * 100;
+  const workDurationMinutes = Math.floor(eyeCareWorkDuration / 60);
 
   return (
     <Card className={cn("h-full", className)}>
@@ -102,7 +103,9 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
         </div>
 
         <div className="text-center text-sm text-muted-foreground">
-          Using the 20-20-20 rule: Every 20 minutes, look at something 20 feet away for 20 seconds
+          {isEyeCareResting 
+            ? `Rest your eyes for ${eyeCareRestDuration} seconds` 
+            : `Work for ${workDurationMinutes} minutes before taking an eye break`}
         </div>
       </CardContent>
     </Card>

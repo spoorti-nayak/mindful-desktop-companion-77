@@ -16,6 +16,8 @@ export function PomodoroTimer({ className }: TimerProps) {
     isPomodoroActive, 
     isPomodoroBreak, 
     pomodoroProgress,
+    pomodoroDuration,
+    pomodoroBreakDuration,
     startPomodoroTimer,
     pausePomodoroTimer,
     resetPomodoroTimer
@@ -71,8 +73,8 @@ export function PomodoroTimer({ className }: TimerProps) {
 
         <div className="text-center text-sm text-muted-foreground">
           {isPomodoroBreak
-            ? "Take a break and rest your eyes"
-            : "Stay focused on your task"}
+            ? `Take a break for ${pomodoroBreakDuration} minutes`
+            : `Stay focused for ${pomodoroDuration} minutes`}
         </div>
       </CardContent>
     </Card>
