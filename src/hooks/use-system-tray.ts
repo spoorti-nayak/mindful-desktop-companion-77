@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import SystemTrayService from '@/services/SystemTrayService';
 import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 
 export function useSystemTray() {
   const [isTrayActive, setIsTrayActive] = useState(false);
@@ -16,12 +17,18 @@ export function useSystemTray() {
     setIsTrayActive(true);
     
     // Add notification listener for focus alerts
-    const notificationHandler = (message: string) => {
-      toast({
-        title: "Focus Reminder",
-        description: message,
-        duration: 8000, // Show longer for important focus notifications
-      });
+    const notificationHandler = (message: string, isFocusAlert: boolean) => {
+      if (isFocusAlert) {
+        // Use centered toast for focus alerts
+        toast({
+          title: "Focus Reminder",
+          description: message,
+          duration: 8000, // Show longer for important focus notifications
+        });
+      } else {
+        // Use regular toast for other notifications
+        sonnerToast(message);
+      }
     };
     
     systemTray.addNotificationListener(notificationHandler);

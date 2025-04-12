@@ -9,7 +9,7 @@ class SystemTrayService {
   private switchThreshold: number = 5; // Number of switches before showing refocus notification
   private switchTimeframe: number = 60000; // 1 minute timeframe
   private switchTimer: NodeJS.Timeout | null = null;
-  private listeners: Array<(message: string) => void> = [];
+  private listeners: Array<(message: string, isFocusAlert: boolean) => void> = [];
 
   private constructor() {
     console.log("System tray service initialized");
@@ -53,7 +53,7 @@ class SystemTrayService {
       this.windowSwitches = 0;
     }, this.switchTimeframe);
     
-    // Check if we've exceeded the threshold
+    // Check if we've exceeded the threshold - only notify on frequent switches
     if (this.windowSwitches >= this.switchThreshold) {
       this.notifyFocusNeeded();
       this.windowSwitches = 0; // Reset after notification
@@ -62,14 +62,14 @@ class SystemTrayService {
 
   private notifyFocusNeeded(): void {
     const message = "You seem distracted. Try focusing on one task at a time.";
-    this.listeners.forEach(listener => listener(message));
+    this.listeners.forEach(listener => listener(message, true));
   }
 
-  public addNotificationListener(callback: (message: string) => void): void {
+  public addNotificationListener(callback: (message: string, isFocusAlert: boolean) => void): void {
     this.listeners.push(callback);
   }
 
-  public removeNotificationListener(callback: (message: string) => void): void {
+  public removeNotificationListener(callback: (message: string, isFocusAlert: boolean) => void): void {
     const index = this.listeners.indexOf(callback);
     if (index > -1) {
       this.listeners.splice(index, 1);
