@@ -15,7 +15,7 @@ export function useSystemTray() {
     eyeCareTimeElapsed,
     eyeCareWorkDuration,
     eyeCareRestDuration,
-    setEyeCareSettings
+    updateTimerSettings
   } = useTimer();
   const { user } = useAuth();
   
@@ -28,19 +28,20 @@ export function useSystemTray() {
       systemTray.loadPreferences(user.id)
         .then(preferences => {
           if (preferences?.eyeCareSettings) {
-            // Update eye care settings from preferences
-            setEyeCareSettings(
-              preferences.eyeCareSettings.isActive, 
-              preferences.eyeCareSettings.workDuration,
-              preferences.eyeCareSettings.restDuration
-            );
+            // Update eye care settings from preferences using the correct method
+            updateTimerSettings({
+              pomodoroDuration: 25, // Default value or get from preferences
+              pomodoroBreakDuration: 5, // Default value or get from preferences
+              eyeCareWorkDuration: preferences.eyeCareSettings.workDuration,
+              eyeCareRestDuration: preferences.eyeCareSettings.restDuration
+            });
           }
         })
         .catch(error => {
           console.error('Failed to load preferences:', error);
         });
     }
-  }, [user, setEyeCareSettings]);
+  }, [user, updateTimerSettings]);
   
   // Save preferences to MongoDB when they change
   useEffect(() => {
