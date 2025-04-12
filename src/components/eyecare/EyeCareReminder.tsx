@@ -54,14 +54,14 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
           {isEyeCareResting ? (
             <div className="flex flex-col items-center justify-center text-center">
               <span className="text-lg font-semibold">Rest Eyes</span>
-              <span className="text-sm font-bold bg-background/80 px-2 py-0.5 rounded-full">
+              <span className="text-sm font-bold bg-background/80 dark:bg-background/30 text-foreground px-2 py-0.5 rounded-full shadow-sm">
                 {eyeCareRestDuration - eyeCareTimeElapsed}s
               </span>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center text-center">
               <span className="text-lg font-semibold">Next Break</span>
-              <span className="text-sm font-bold bg-background/80 px-2 py-0.5 rounded-full">
+              <span className="text-sm font-bold bg-background/80 dark:bg-background/30 text-foreground px-2 py-0.5 rounded-full shadow-sm">
                 {Math.floor((eyeCareWorkDuration - eyeCareTimeElapsed) / 60)}:
                 {String((eyeCareWorkDuration - eyeCareTimeElapsed) % 60).padStart(2, "0")}
               </span>

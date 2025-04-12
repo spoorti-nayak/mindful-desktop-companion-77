@@ -71,6 +71,7 @@ export default {
 					300: "#7AB7FF",
 					400: "#4A99FF",
 					500: "#1A7BFF",
+					900: "#0A3B7A",  // Added darker shade for dark mode
 				},
 				"attention-green": {
 					50: "#EDFCF4",
@@ -87,6 +88,7 @@ export default {
 					300: "#F68F64",
 					400: "#F37945",
 					500: "#F05E23",
+					900: "#7A2F11",  // Added darker shade for dark mode
 				},
 			},
 			borderRadius: {
