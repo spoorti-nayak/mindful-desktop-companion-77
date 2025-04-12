@@ -1,6 +1,5 @@
 
-// This is a mock implementation for web preview
-// In a real desktop app, you would use Electron's Tray API
+// This service handles system tray functionality and active window monitoring
 
 class SystemTrayService {
   private static instance: SystemTrayService;
@@ -10,10 +9,44 @@ class SystemTrayService {
   private switchTimeframe: number = 60000; // 1 minute timeframe
   private switchTimer: NodeJS.Timeout | null = null;
   private listeners: Array<(message: string, isFocusAlert: boolean) => void> = [];
+  private isDesktopApp: boolean = false;
 
   private constructor() {
     console.log("System tray service initialized");
-    this.startWindowMonitoring();
+    
+    // Check if running in Electron or similar desktop environment
+    this.isDesktopApp = this.checkIsDesktopApp();
+    
+    if (this.isDesktopApp) {
+      this.initializeDesktopMonitoring();
+    } else {
+      // Fall back to simulation for web preview
+      this.startWindowMonitoring();
+    }
+  }
+
+  // Detect if we're running in a desktop environment
+  private checkIsDesktopApp(): boolean {
+    // Check for Electron or similar desktop app environment
+    return !!(window as any).electron || !!(window as any).process?.versions?.electron;
+  }
+
+  // Initialize real monitoring for desktop environments
+  private initializeDesktopMonitoring(): void {
+    console.log("Initializing real desktop monitoring");
+    
+    // This would connect to native APIs via Electron IPC in a real app
+    if (this.isDesktopApp && (window as any).electron) {
+      // Example: Listen for active window changes from main process
+      (window as any).electron.receive('active-window-changed', (windowInfo: any) => {
+        this.handleRealWindowSwitch(windowInfo.title);
+      });
+      
+      // Example: Listen for blink detection events
+      (window as any).electron.receive('blink-detected', () => {
+        this.notifyEyeCare();
+      });
+    }
   }
 
   public static getInstance(): SystemTrayService {
@@ -23,7 +56,7 @@ class SystemTrayService {
     return SystemTrayService.instance;
   }
 
-  // In a real app, this would use native APIs to detect active windows
+  // Simulated window monitoring for web preview
   private startWindowMonitoring(): void {
     // For demo purposes, we'll simulate window switches with random "apps"
     const mockApps = ["YouTube", "Instagram", "Twitter", "Gmail", "Notepad", "VS Code", "Spotify"];
@@ -38,6 +71,7 @@ class SystemTrayService {
     }, Math.random() * 10000 + 5000);
   }
 
+  // Handle window switch for simulated environment
   private handleWindowSwitch(newWindow: string): void {
     console.log(`Active window changed to: ${newWindow}`);
     this.lastActiveWindow = newWindow;
@@ -60,8 +94,19 @@ class SystemTrayService {
     }
   }
 
+  // Handle real window switch data from desktop APIs
+  private handleRealWindowSwitch(windowTitle: string): void {
+    console.log(`Real active window changed to: ${windowTitle}`);
+    this.handleWindowSwitch(windowTitle); // Reuse existing logic
+  }
+
   private notifyFocusNeeded(): void {
     const message = "You seem distracted. Try focusing on one task at a time.";
+    this.listeners.forEach(listener => listener(message, true));
+  }
+
+  private notifyEyeCare(): void {
+    const message = "Remember to blink regularly to reduce eye strain.";
     this.listeners.forEach(listener => listener(message, true));
   }
 
@@ -76,16 +121,25 @@ class SystemTrayService {
     }
   }
 
-  // In a real app, these methods would control the system tray
+  // In a real app, these methods would control the system tray via Electron
   public showTrayIcon(): void {
+    if (this.isDesktopApp && (window as any).electron) {
+      (window as any).electron.send('show-tray');
+    }
     console.log("System tray icon shown");
   }
 
   public hideTrayIcon(): void {
+    if (this.isDesktopApp && (window as any).electron) {
+      (window as any).electron.send('hide-tray');
+    }
     console.log("System tray icon hidden");
   }
 
   public setTrayTooltip(tooltip: string): void {
+    if (this.isDesktopApp && (window as any).electron) {
+      (window as any).electron.send('set-tray-tooltip', tooltip);
+    }
     console.log(`Set tray tooltip to: ${tooltip}`);
   }
 }
