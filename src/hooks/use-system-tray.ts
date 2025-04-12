@@ -4,6 +4,7 @@ import SystemTrayService from '@/services/SystemTrayService';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 import { useTimer } from '@/contexts/TimerContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function useSystemTray() {
   const [isTrayActive, setIsTrayActive] = useState(false);
@@ -11,8 +12,55 @@ export function useSystemTray() {
   const { 
     isEyeCareActive, 
     isEyeCareResting,
-    eyeCareTimeElapsed
+    eyeCareTimeElapsed,
+    eyeCareWorkDuration,
+    eyeCareRestDuration,
+    setEyeCareSettings
   } = useTimer();
+  const { user } = useAuth();
+  
+  // Load user preferences from MongoDB when component mounts
+  useEffect(() => {
+    const systemTray = SystemTrayService.getInstance();
+    
+    if (user) {
+      // Try to load preferences from MongoDB
+      systemTray.loadPreferences(user.id)
+        .then(preferences => {
+          if (preferences?.eyeCareSettings) {
+            // Update eye care settings from preferences
+            setEyeCareSettings(
+              preferences.eyeCareSettings.isActive, 
+              preferences.eyeCareSettings.workDuration,
+              preferences.eyeCareSettings.restDuration
+            );
+          }
+        })
+        .catch(error => {
+          console.error('Failed to load preferences:', error);
+        });
+    }
+  }, [user, setEyeCareSettings]);
+  
+  // Save preferences to MongoDB when they change
+  useEffect(() => {
+    const systemTray = SystemTrayService.getInstance();
+    
+    if (user) {
+      const preferences = {
+        eyeCareSettings: {
+          isActive: isEyeCareActive,
+          workDuration: eyeCareWorkDuration,
+          restDuration: eyeCareRestDuration
+        }
+      };
+      
+      systemTray.savePreferences(user.id, preferences)
+        .catch(error => {
+          console.error('Failed to save preferences:', error);
+        });
+    }
+  }, [user, isEyeCareActive, eyeCareWorkDuration, eyeCareRestDuration]);
   
   useEffect(() => {
     const systemTray = SystemTrayService.getInstance();

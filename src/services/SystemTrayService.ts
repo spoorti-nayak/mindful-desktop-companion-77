@@ -10,6 +10,7 @@ class SystemTrayService {
   private switchTimer: NodeJS.Timeout | null = null;
   private listeners: Array<(message: string, isFocusAlert: boolean) => void> = [];
   private isDesktopApp: boolean = false;
+  private apiBaseUrl: string = 'http://localhost:5000/api';
 
   private constructor() {
     console.log("System tray service initialized");
@@ -133,6 +134,43 @@ class SystemTrayService {
     const index = this.listeners.indexOf(callback);
     if (index > -1) {
       this.listeners.splice(index, 1);
+    }
+  }
+
+  // Save user preferences to MongoDB
+  public async savePreferences(userId: string, preferences: any): Promise<boolean> {
+    if (!userId) return false;
+    
+    try {
+      const response = await fetch(`${this.apiBaseUrl}/preferences/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(preferences)
+      });
+      
+      return response.ok;
+    } catch (error) {
+      console.error('Failed to save preferences:', error);
+      return false;
+    }
+  }
+  
+  // Load user preferences from MongoDB
+  public async loadPreferences(userId: string): Promise<any> {
+    if (!userId) return null;
+    
+    try {
+      const response = await fetch(`${this.apiBaseUrl}/preferences/${userId}`);
+      
+      if (response.ok) {
+        return await response.json();
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to load preferences:', error);
+      return null;
     }
   }
 

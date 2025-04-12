@@ -20,6 +20,7 @@ type AuthContextType = {
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const API_URL = 'http://localhost:5000/api';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -38,26 +39,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      // In a real app, this would call an API
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
-      const foundUser = users.find(
-        (u: any) => u.email === email && u.password === password
-      );
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-      if (!foundUser) {
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
         sonnerToast.error("Login failed: Invalid email or password");
         return false;
       }
 
-      // Remove password before storing in state
-      const { password: _, ...userWithoutPassword } = foundUser;
-      setUser(userWithoutPassword);
-      localStorage.setItem("user", JSON.stringify(userWithoutPassword));
+      setUser(data.user);
+      localStorage.setItem("user", JSON.stringify(data.user));
       
-      sonnerToast.success(`Welcome back, ${foundUser.name}!`);
+      sonnerToast.success(`Welcome back, ${data.user.name}!`);
       return true;
     } catch (error) {
       sonnerToast.error("Login failed: An error occurred during login");
+      console.error("Login error:", error);
       return false;
     } finally {
       setIsLoading(false);
@@ -67,34 +71,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = async (name: string, email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      // In a real app, this would call an API
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
-      
-      // Check if user already exists
-      if (users.some((u: any) => u.email === email)) {
-        sonnerToast.error("Signup failed: Email already in use");
+      const response = await fetch(`${API_URL}/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        sonnerToast.error(`Signup failed: ${data.message || 'An error occurred'}`);
         return false;
       }
 
-      const newUser = {
-        id: crypto.randomUUID(),
-        name,
-        email,
-        password,
-      };
-      
-      users.push(newUser);
-      localStorage.setItem("users", JSON.stringify(users));
-      
-      // Remove password before storing in state
-      const { password: _, ...userWithoutPassword } = newUser;
-      setUser(userWithoutPassword);
-      localStorage.setItem("user", JSON.stringify(userWithoutPassword));
+      setUser(data.user);
+      localStorage.setItem("user", JSON.stringify(data.user));
       
       sonnerToast.success(`Welcome, ${name}!`);
       return true;
     } catch (error) {
       sonnerToast.error("Signup failed: An error occurred during signup");
+      console.error("Signup error:", error);
       return false;
     } finally {
       setIsLoading(false);
@@ -110,33 +109,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const forgotPassword = async (email: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      // In a real app, this would call an API to send an email
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
-      const foundUser = users.find((u: any) => u.email === email);
-      
-      if (!foundUser) {
-        sonnerToast.error("Reset failed: No account found with this email");
+      const response = await fetch(`${API_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        sonnerToast.error(`Reset failed: ${data.message || 'No account found with this email'}`);
         return false;
       }
       
-      // Generate a reset code (in real app, this would be sent via email)
-      const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // Store the reset code
-      const resetRequests = JSON.parse(localStorage.getItem("resetRequests") || "[]");
-      resetRequests.push({
-        email,
-        code: resetCode,
-        timestamp: Date.now(),
-      });
-      localStorage.setItem("resetRequests", JSON.stringify(resetRequests));
-      
-      // Simulate email sending
-      console.log(`Reset code for ${email}: ${resetCode}`);
-      sonnerToast.success("Reset code sent: Check your email (or console) for the reset code");
+      // In a real app, the code would be sent to the user's email
+      sonnerToast.success("Reset code sent: Check your email for the reset code");
       return true;
     } catch (error) {
       sonnerToast.error("Reset failed: An error occurred");
+      console.error("Forgot password error:", error);
       return false;
     } finally {
       setIsLoading(false);
@@ -146,39 +139,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resetPassword = async (email: string, code: string, newPassword: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      // In a real app, this would verify the code with an API
-      const resetRequests = JSON.parse(localStorage.getItem("resetRequests") || "[]");
-      const validRequest = resetRequests.find(
-        (r: any) => r.email === email && r.code === code && (Date.now() - r.timestamp < 3600000)
-      );
-      
-      if (!validRequest) {
-        sonnerToast.error("Reset failed: Invalid or expired reset code");
+      const response = await fetch(`${API_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, code, newPassword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        sonnerToast.error(`Reset failed: ${data.message || 'Invalid or expired reset code'}`);
         return false;
       }
-      
-      // Update the user's password
-      const users = JSON.parse(localStorage.getItem("users") || "[]");
-      const userIndex = users.findIndex((u: any) => u.email === email);
-      
-      if (userIndex === -1) {
-        sonnerToast.error("Reset failed: User not found");
-        return false;
-      }
-      
-      users[userIndex].password = newPassword;
-      localStorage.setItem("users", JSON.stringify(users));
-      
-      // Remove the reset request
-      const newResetRequests = resetRequests.filter(
-        (r: any) => !(r.email === email && r.code === code)
-      );
-      localStorage.setItem("resetRequests", JSON.stringify(newResetRequests));
       
       sonnerToast.success("Password reset successful: You can now login with your new password");
       return true;
     } catch (error) {
       sonnerToast.error("Reset failed: An error occurred");
+      console.error("Reset password error:", error);
       return false;
     } finally {
       setIsLoading(false);
