@@ -7,7 +7,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TimerProvider } from "@/contexts/TimerContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { useSystemTray } from "@/hooks/use-system-tray";
 import Welcome from "./pages/Welcome";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -36,11 +35,8 @@ const RootRedirect = () => {
   return <Navigate to={user ? "/dashboard" : "/welcome"} replace />;
 };
 
-// Add system tray wrapper component
-const AppWithSystemTray = () => {
-  // Initialize system tray
-  useSystemTray();
-  
+// Main application component
+const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -84,7 +80,5 @@ const AppWithSystemTray = () => {
     </QueryClientProvider>
   );
 };
-
-const App = () => <AppWithSystemTray />;
 
 export default App;

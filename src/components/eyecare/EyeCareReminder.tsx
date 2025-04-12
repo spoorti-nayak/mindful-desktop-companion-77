@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -6,6 +5,7 @@ import { Eye, EyeOff, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTimer } from "@/contexts/TimerContext";
 import { useSystemTray } from "@/hooks/use-system-tray";
+import { useEyeCareTray } from "@/hooks/use-eye-care-tray"; 
 import { useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 
@@ -28,6 +28,9 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
   
   // Initialize system tray
   const { isTrayActive } = useSystemTray();
+  
+  // Initialize eye care tray functionality
+  useEyeCareTray();
   
   // Set up notifications for eye care events
   useEffect(() => {
