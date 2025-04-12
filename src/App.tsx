@@ -46,8 +46,10 @@ const AppWithSystemTray = () => {
       <AuthProvider>
         <TimerProvider>
           <TooltipProvider>
+            {/* Center toast for focus-related notifications */}
             <Toaster />
-            <Sonner />
+            {/* Bottom right toast for regular UI notifications */}
+            <Sonner position="bottom-right" />
             <BrowserRouter>
               <Routes>
                 {/* Welcome/Landing Page */}

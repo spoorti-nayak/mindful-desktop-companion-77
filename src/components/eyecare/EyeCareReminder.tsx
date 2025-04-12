@@ -47,19 +47,21 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
           className={cn(
             "flex h-32 w-32 flex-col items-center justify-center rounded-full border-4",
             isEyeCareResting 
-              ? "border-attention-warm-300 animate-breathe bg-attention-warm-50" 
-              : "border-attention-blue-300 bg-attention-blue-50"
+              ? "border-attention-warm-300 animate-breathe bg-attention-warm-50 dark:bg-attention-warm-900/20" 
+              : "border-attention-blue-300 bg-attention-blue-50 dark:bg-attention-blue-900/20"
           )}
         >
           {isEyeCareResting ? (
             <div className="flex flex-col items-center justify-center text-center">
               <span className="text-lg font-semibold">Rest Eyes</span>
-              <span className="text-sm">{eyeCareRestDuration - eyeCareTimeElapsed}s</span>
+              <span className="text-sm font-bold bg-background/80 px-2 py-0.5 rounded-full">
+                {eyeCareRestDuration - eyeCareTimeElapsed}s
+              </span>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center text-center">
               <span className="text-lg font-semibold">Next Break</span>
-              <span className="text-sm">
+              <span className="text-sm font-bold bg-background/80 px-2 py-0.5 rounded-full">
                 {Math.floor((eyeCareWorkDuration - eyeCareTimeElapsed) / 60)}:
                 {String((eyeCareWorkDuration - eyeCareTimeElapsed) % 60).padStart(2, "0")}
               </span>

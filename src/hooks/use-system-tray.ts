@@ -19,14 +19,14 @@ export function useSystemTray() {
     // Add notification listener for focus alerts
     const notificationHandler = (message: string, isFocusAlert: boolean) => {
       if (isFocusAlert) {
-        // Use centered toast for focus alerts
+        // Use centered toast for focus alerts (eye breaks, focus reminders)
         toast({
-          title: "Focus Reminder",
+          title: "Attention Reminder",
           description: message,
           duration: 8000, // Show longer for important focus notifications
         });
       } else {
-        // Use regular toast for other notifications
+        // Use bottom-right toast for system notifications
         sonnerToast(message);
       }
     };

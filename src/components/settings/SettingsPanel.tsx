@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,13 +13,15 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTimer } from "@/contexts/TimerContext";
 import { Slider } from "@/components/ui/slider";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast as sonnerToast } from "sonner";
 
 const timerSettingsSchema = z.object({
   pomodoroDuration: z.number().min(1).max(120),
@@ -31,6 +34,8 @@ type TimerSettingsValues = z.infer<typeof timerSettingsSchema>;
 
 export function SettingsPanel() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [username, setUsername] = useState(user?.name || "");
   const { 
     pomodoroDuration,
     pomodoroBreakDuration,
@@ -38,6 +43,12 @@ export function SettingsPanel() {
     eyeCareRestDuration,
     updateTimerSettings
   } = useTimer();
+
+  useEffect(() => {
+    if (user?.name) {
+      setUsername(user.name);
+    }
+  }, [user]);
 
   const timerForm = useForm<TimerSettingsValues>({
     resolver: zodResolver(timerSettingsSchema),
@@ -50,8 +61,7 @@ export function SettingsPanel() {
   });
 
   const handleSave = () => {
-    toast({
-      title: "Settings saved",
+    sonnerToast("Settings saved", {
       description: "Your preferences have been updated.",
     });
   };
@@ -64,18 +74,16 @@ export function SettingsPanel() {
       eyeCareRestDuration: data.eyeCareRestDuration,
     });
     
-    toast({
-      title: "Timer settings saved",
+    sonnerToast("Timer settings saved", {
       description: "Your timer preferences have been updated.",
     });
   };
 
   return (
     <Tabs defaultValue="general" className="w-full">
-      <TabsList className="grid w-full grid-cols-4">
+      <TabsList className="grid w-full grid-cols-3">
         <TabsTrigger value="general">General</TabsTrigger>
         <TabsTrigger value="notifications">Notifications</TabsTrigger>
-        <TabsTrigger value="eyecare">Eye Care</TabsTrigger>
         <TabsTrigger value="timers">Timer Settings</TabsTrigger>
       </TabsList>
       
@@ -90,7 +98,7 @@ export function SettingsPanel() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
-              <Input id="username" defaultValue="JohnDoe" />
+              <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} />
             </div>
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
@@ -160,63 +168,6 @@ export function SettingsPanel() {
                 <span className="flex items-center">to</span>
                 <Input id="quietHoursEnd" type="time" defaultValue="08:00" />
               </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-end">
-            <Button onClick={handleSave}>Save Changes</Button>
-          </CardFooter>
-        </Card>
-      </TabsContent>
-      
-      <TabsContent value="eyecare">
-        <Card>
-          <CardHeader>
-            <CardTitle>Eye Care Settings</CardTitle>
-            <CardDescription>
-              Customize your eye protection features.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="eyeCareEnabled">Enable eye care</Label>
-                <p className="text-sm text-muted-foreground">
-                  Track screen time and provide reminders
-                </p>
-              </div>
-              <Switch id="eyeCareEnabled" defaultChecked />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reminderInterval">Reminder interval (minutes)</Label>
-              <Input
-                id="reminderInterval"
-                type="number"
-                min="5"
-                max="60"
-                defaultValue="20"
-              />
-              <p className="text-xs text-muted-foreground">
-                Standard recommendation is 20 minutes (20-20-20 rule)
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="restDuration">Rest duration (seconds)</Label>
-              <Input
-                id="restDuration"
-                type="number"
-                min="5"
-                max="60"
-                defaultValue="20"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="screenDimming">Screen dimming during breaks</Label>
-                <p className="text-sm text-muted-foreground">
-                  Slightly dim the screen to encourage looking away
-                </p>
-              </div>
-              <Switch id="screenDimming" />
             </div>
           </CardContent>
           <CardFooter className="flex justify-end">

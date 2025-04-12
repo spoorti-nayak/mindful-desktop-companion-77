@@ -1,6 +1,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
 
 interface TimerSettings {
   pomodoroDuration: number;
@@ -157,12 +158,14 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
             clearInterval(interval as NodeJS.Timeout);
             // Timer completed
             if (isPomodoroBreak) {
+              // Use centered notification for attention-related alerts
               toast({
                 title: "Break time is over!",
                 description: "Time to get back to work!",
               });
               resetPomodoroTimer(false);
             } else {
+              // Use centered notification for attention-related alerts
               toast({
                 title: "Great job! Time for a break",
                 description: "Take a moment to rest your eyes and stretch.",
@@ -204,7 +207,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
           setEyeCareRestProgress(newRestProgress);
           
           if (eyeCareTimeElapsed >= eyeCareRestDuration) {
-            // Rest period ended
+            // Rest period ended - use centered notification for attention reminders
             toast({
               title: "Rest completed!",
               description: "Your eyes should feel refreshed now.",
@@ -216,7 +219,7 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
         } else {
           // During work period
           if (eyeCareTimeElapsed >= eyeCareWorkDuration) {
-            // Work period ended, start rest
+            // Work period ended, start rest - use centered notification
             toast({
               title: "Time for an eye break!",
               description: "Look at something 20 feet away for 20 seconds.",

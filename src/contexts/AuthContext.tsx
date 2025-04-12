@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
 
 type User = {
   id: string;
@@ -44,8 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
 
       if (!foundUser) {
-        toast({
-          title: "Login failed",
+        sonnerToast("Login failed", {
           description: "Invalid email or password",
           variant: "destructive",
         });
@@ -57,14 +57,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userWithoutPassword);
       localStorage.setItem("user", JSON.stringify(userWithoutPassword));
       
-      toast({
-        title: "Login successful",
+      sonnerToast("Login successful", {
         description: `Welcome back, ${foundUser.name}!`,
       });
       return true;
     } catch (error) {
-      toast({
-        title: "Login failed",
+      sonnerToast("Login failed", {
         description: "An error occurred during login",
         variant: "destructive",
       });
@@ -82,8 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Check if user already exists
       if (users.some((u: any) => u.email === email)) {
-        toast({
-          title: "Signup failed",
+        sonnerToast("Signup failed", {
           description: "Email already in use",
           variant: "destructive",
         });
@@ -105,14 +102,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userWithoutPassword);
       localStorage.setItem("user", JSON.stringify(userWithoutPassword));
       
-      toast({
-        title: "Signup successful",
+      sonnerToast("Signup successful", {
         description: `Welcome, ${name}!`,
       });
       return true;
     } catch (error) {
-      toast({
-        title: "Signup failed",
+      sonnerToast("Signup failed", {
         description: "An error occurred during signup",
         variant: "destructive",
       });
@@ -125,8 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("user");
-    toast({
-      title: "Logged out",
+    sonnerToast("Logged out", {
       description: "You have been successfully logged out",
     });
   };
@@ -139,8 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const foundUser = users.find((u: any) => u.email === email);
       
       if (!foundUser) {
-        toast({
-          title: "Reset failed",
+        sonnerToast("Reset failed", {
           description: "No account found with this email",
           variant: "destructive",
         });
@@ -161,14 +154,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Simulate email sending
       console.log(`Reset code for ${email}: ${resetCode}`);
-      toast({
-        title: "Reset code sent",
+      sonnerToast("Reset code sent", {
         description: "Check your email (or console) for the reset code",
       });
       return true;
     } catch (error) {
-      toast({
-        title: "Reset failed",
+      sonnerToast("Reset failed", {
         description: "An error occurred",
         variant: "destructive",
       });
@@ -188,8 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       
       if (!validRequest) {
-        toast({
-          title: "Reset failed",
+        sonnerToast("Reset failed", {
           description: "Invalid or expired reset code",
           variant: "destructive",
         });
@@ -201,8 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userIndex = users.findIndex((u: any) => u.email === email);
       
       if (userIndex === -1) {
-        toast({
-          title: "Reset failed",
+        sonnerToast("Reset failed", {
           description: "User not found",
           variant: "destructive",
         });
@@ -218,14 +207,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       localStorage.setItem("resetRequests", JSON.stringify(newResetRequests));
       
-      toast({
-        title: "Password reset successful",
+      sonnerToast("Password reset successful", {
         description: "You can now login with your new password",
       });
       return true;
     } catch (error) {
-      toast({
-        title: "Reset failed",
+      sonnerToast("Reset failed", {
         description: "An error occurred",
         variant: "destructive",
       });
