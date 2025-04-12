@@ -1,7 +1,7 @@
 
 const { app, BrowserWindow, Tray, Menu, ipcMain } = require('electron');
 const path = require('path');
-const activeWin = require('active-win');
+const getWindows = require('get-windows'); // Updated from active-win
 const express = require('express');
 const { BlinkDetector } = require('./services/blink-detector');
 const { connectDB } = require('./db/mongodb');
@@ -84,12 +84,13 @@ function createTray() {
 function startActiveWindowMonitoring() {
   activeWindowInterval = setInterval(async () => {
     try {
-      const result = await activeWin();
-      if (result) {
+      const windows = await getWindows(); // Updated usage
+      if (windows && windows.length > 0) {
+        const activeWindow = windows[0]; // Usually the first window is active
         mainWindow.webContents.send('active-window-changed', {
-          title: result.title,
-          owner: result.owner.name,
-          path: result.owner.path
+          title: activeWindow.title,
+          owner: activeWindow.owner?.name || 'Unknown',
+          path: activeWindow.owner?.path || 'Unknown'
         });
       }
     } catch (error) {
