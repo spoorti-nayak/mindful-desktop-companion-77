@@ -47,7 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!foundUser) {
         sonnerToast("Login failed", {
           description: "Invalid email or password",
-          variant: "destructive",
+          // Using type instead of variant for sonner toast
+          type: "error"
         });
         return false;
       }
@@ -64,7 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       sonnerToast("Login failed", {
         description: "An error occurred during login",
-        variant: "destructive",
+        // Using type instead of variant for sonner toast
+        type: "error"
       });
       return false;
     } finally {
@@ -82,7 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (users.some((u: any) => u.email === email)) {
         sonnerToast("Signup failed", {
           description: "Email already in use",
-          variant: "destructive",
+          // Using type instead of variant for sonner toast
+          type: "error"
         });
         return false;
       }
@@ -109,7 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       sonnerToast("Signup failed", {
         description: "An error occurred during signup",
-        variant: "destructive",
+        // Using type instead of variant for sonner toast
+        type: "error"
       });
       return false;
     } finally {
@@ -135,7 +139,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!foundUser) {
         sonnerToast("Reset failed", {
           description: "No account found with this email",
-          variant: "destructive",
+          // Using type instead of variant for sonner toast
+          type: "error"
         });
         return false;
       }
@@ -161,7 +166,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       sonnerToast("Reset failed", {
         description: "An error occurred",
-        variant: "destructive",
+        // Using type instead of variant for sonner toast
+        type: "error"
       });
       return false;
     } finally {
@@ -181,7 +187,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!validRequest) {
         sonnerToast("Reset failed", {
           description: "Invalid or expired reset code",
-          variant: "destructive",
+          // Using type instead of variant for sonner toast
+          type: "error"
         });
         return false;
       }
@@ -193,7 +200,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (userIndex === -1) {
         sonnerToast("Reset failed", {
           description: "User not found",
-          variant: "destructive",
+          // Using type instead of variant for sonner toast
+          type: "error"
         });
         return false;
       }
@@ -214,7 +222,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       sonnerToast("Reset failed", {
         description: "An error occurred",
-        variant: "destructive",
+        // Using type instead of variant for sonner toast
+        type: "error"
       });
       return false;
     } finally {
