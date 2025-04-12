@@ -45,11 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
 
       if (!foundUser) {
-        sonnerToast("Login failed", {
-          description: "Invalid email or password",
-          // Using type instead of variant for sonner toast
-          type: "error"
-        });
+        sonnerToast.error("Login failed", "Invalid email or password");
         return false;
       }
 
@@ -58,16 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userWithoutPassword);
       localStorage.setItem("user", JSON.stringify(userWithoutPassword));
       
-      sonnerToast("Login successful", {
-        description: `Welcome back, ${foundUser.name}!`,
-      });
+      sonnerToast.success("Login successful", `Welcome back, ${foundUser.name}!`);
       return true;
     } catch (error) {
-      sonnerToast("Login failed", {
-        description: "An error occurred during login",
-        // Using type instead of variant for sonner toast
-        type: "error"
-      });
+      sonnerToast.error("Login failed", "An error occurred during login");
       return false;
     } finally {
       setIsLoading(false);
@@ -82,11 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Check if user already exists
       if (users.some((u: any) => u.email === email)) {
-        sonnerToast("Signup failed", {
-          description: "Email already in use",
-          // Using type instead of variant for sonner toast
-          type: "error"
-        });
+        sonnerToast.error("Signup failed", "Email already in use");
         return false;
       }
 
@@ -105,16 +91,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userWithoutPassword);
       localStorage.setItem("user", JSON.stringify(userWithoutPassword));
       
-      sonnerToast("Signup successful", {
-        description: `Welcome, ${name}!`,
-      });
+      sonnerToast.success("Signup successful", `Welcome, ${name}!`);
       return true;
     } catch (error) {
-      sonnerToast("Signup failed", {
-        description: "An error occurred during signup",
-        // Using type instead of variant for sonner toast
-        type: "error"
-      });
+      sonnerToast.error("Signup failed", "An error occurred during signup");
       return false;
     } finally {
       setIsLoading(false);
@@ -124,9 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("user");
-    sonnerToast("Logged out", {
-      description: "You have been successfully logged out",
-    });
+    sonnerToast.success("Logged out", "You have been successfully logged out");
   };
 
   const forgotPassword = async (email: string): Promise<boolean> => {
@@ -137,11 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const foundUser = users.find((u: any) => u.email === email);
       
       if (!foundUser) {
-        sonnerToast("Reset failed", {
-          description: "No account found with this email",
-          // Using type instead of variant for sonner toast
-          type: "error"
-        });
+        sonnerToast.error("Reset failed", "No account found with this email");
         return false;
       }
       
@@ -159,16 +133,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Simulate email sending
       console.log(`Reset code for ${email}: ${resetCode}`);
-      sonnerToast("Reset code sent", {
-        description: "Check your email (or console) for the reset code",
-      });
+      sonnerToast.success("Reset code sent", "Check your email (or console) for the reset code");
       return true;
     } catch (error) {
-      sonnerToast("Reset failed", {
-        description: "An error occurred",
-        // Using type instead of variant for sonner toast
-        type: "error"
-      });
+      sonnerToast.error("Reset failed", "An error occurred");
       return false;
     } finally {
       setIsLoading(false);
@@ -185,11 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       
       if (!validRequest) {
-        sonnerToast("Reset failed", {
-          description: "Invalid or expired reset code",
-          // Using type instead of variant for sonner toast
-          type: "error"
-        });
+        sonnerToast.error("Reset failed", "Invalid or expired reset code");
         return false;
       }
       
@@ -198,11 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userIndex = users.findIndex((u: any) => u.email === email);
       
       if (userIndex === -1) {
-        sonnerToast("Reset failed", {
-          description: "User not found",
-          // Using type instead of variant for sonner toast
-          type: "error"
-        });
+        sonnerToast.error("Reset failed", "User not found");
         return false;
       }
       
@@ -215,16 +175,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       localStorage.setItem("resetRequests", JSON.stringify(newResetRequests));
       
-      sonnerToast("Password reset successful", {
-        description: "You can now login with your new password",
-      });
+      sonnerToast.success("Password reset successful", "You can now login with your new password");
       return true;
     } catch (error) {
-      sonnerToast("Reset failed", {
-        description: "An error occurred",
-        // Using type instead of variant for sonner toast
-        type: "error"
-      });
+      sonnerToast.error("Reset failed", "An error occurred");
       return false;
     } finally {
       setIsLoading(false);
