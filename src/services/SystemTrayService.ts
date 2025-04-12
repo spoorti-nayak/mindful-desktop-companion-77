@@ -31,6 +31,11 @@ class SystemTrayService {
     return !!(window as any).electron || !!(window as any).process?.versions?.electron;
   }
 
+  // Allow external components to check if we're in desktop mode
+  public isDesktopEnvironment(): boolean {
+    return this.isDesktopApp;
+  }
+
   // Initialize real monitoring for desktop environments
   private initializeDesktopMonitoring(): void {
     console.log("Initializing real desktop monitoring");
@@ -45,6 +50,11 @@ class SystemTrayService {
       // Example: Listen for blink detection events
       (window as any).electron.receive('blink-detected', () => {
         this.notifyEyeCare();
+      });
+      
+      // Set up eye care notification handler
+      (window as any).electron.receive('eye-care-reminder', () => {
+        this.notifyEyeCareBreak();
       });
     }
   }
@@ -107,6 +117,11 @@ class SystemTrayService {
 
   private notifyEyeCare(): void {
     const message = "Remember to blink regularly to reduce eye strain.";
+    this.listeners.forEach(listener => listener(message, true));
+  }
+  
+  private notifyEyeCareBreak(): void {
+    const message = "Time to rest your eyes! Look 20ft away for 20 seconds.";
     this.listeners.forEach(listener => listener(message, true));
   }
 

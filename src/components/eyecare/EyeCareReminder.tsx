@@ -5,6 +5,9 @@ import { Progress } from "@/components/ui/progress";
 import { Eye, EyeOff, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTimer } from "@/contexts/TimerContext";
+import { useSystemTray } from "@/hooks/use-system-tray";
+import { useEffect } from "react";
+import { toast } from "@/hooks/use-toast";
 
 interface EyeCareReminderProps {
   className?: string;
@@ -22,6 +25,29 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
     pauseEyeCareTimer,
     resetEyeCareTimer
   } = useTimer();
+  
+  // Initialize system tray
+  const { isTrayActive } = useSystemTray();
+  
+  // Set up notifications for eye care events
+  useEffect(() => {
+    if (isEyeCareResting && eyeCareTimeElapsed === 0) {
+      // First frame of rest period - notify user
+      toast({
+        title: "Eye Care Reminder",
+        description: "Time to rest your eyes! Look 20ft away for 20 seconds.",
+        duration: 8000,
+      });
+    } 
+    else if (!isEyeCareResting && eyeCareTimeElapsed === 0 && isEyeCareActive) {
+      // Rest period just ended - notify user
+      toast({
+        title: "Eye Care Break Complete",
+        description: "You can resume your work now. Next break in 20 minutes.",
+        duration: 5000,
+      });
+    }
+  }, [isEyeCareResting, eyeCareTimeElapsed, isEyeCareActive]);
 
   const toggleActive = () => {
     if (isEyeCareActive) {
@@ -39,7 +65,7 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
       <CardHeader>
         <CardTitle className="flex items-center justify-center space-x-2">
           <Eye className="h-5 w-5" />
-          <span>Eye Care</span>
+          <span>Eye Care{isTrayActive ? ' (System Tray Active)' : ''}</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col items-center space-y-4">
@@ -108,6 +134,12 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
           {isEyeCareResting 
             ? `Rest your eyes for ${eyeCareRestDuration} seconds` 
             : `Work for ${workDurationMinutes} minutes before taking an eye break`}
+        </div>
+        
+        <div className="text-xs text-muted-foreground mt-2">
+          {isTrayActive 
+            ? "Eye care reminders will show even when minimized" 
+            : "Running in browser mode - minimize to tray disabled"}
         </div>
       </CardContent>
     </Card>

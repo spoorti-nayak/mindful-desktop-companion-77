@@ -3,10 +3,16 @@ import { useEffect, useState } from 'react';
 import SystemTrayService from '@/services/SystemTrayService';
 import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
+import { useTimer } from '@/contexts/TimerContext';
 
 export function useSystemTray() {
   const [isTrayActive, setIsTrayActive] = useState(false);
   const { toast } = useToast();
+  const { 
+    isEyeCareActive, 
+    isEyeCareResting,
+    eyeCareTimeElapsed
+  } = useTimer();
   
   useEffect(() => {
     const systemTray = SystemTrayService.getInstance();
@@ -14,7 +20,7 @@ export function useSystemTray() {
     // Initialize system tray
     systemTray.showTrayIcon();
     systemTray.setTrayTooltip("Mindful Desktop Companion");
-    setIsTrayActive(true);
+    setIsTrayActive(systemTray.isDesktopEnvironment());
     
     // Add notification listener for focus alerts
     const notificationHandler = (message: string, isFocusAlert: boolean) => {
@@ -33,12 +39,23 @@ export function useSystemTray() {
     
     systemTray.addNotificationListener(notificationHandler);
     
+    // Update tray tooltip with current timer status
+    if (isEyeCareActive) {
+      if (isEyeCareResting) {
+        systemTray.setTrayTooltip(`Eye Rest: ${eyeCareTimeElapsed}s remaining`);
+      } else {
+        const minutesRemaining = Math.floor(eyeCareTimeElapsed / 60);
+        const secondsRemaining = eyeCareTimeElapsed % 60;
+        systemTray.setTrayTooltip(`Next Break: ${minutesRemaining}:${String(secondsRemaining).padStart(2, '0')}`);
+      }
+    }
+    
     return () => {
       // Cleanup
       systemTray.removeNotificationListener(notificationHandler);
       systemTray.hideTrayIcon();
     };
-  }, [toast]);
+  }, [toast, isEyeCareActive, isEyeCareResting, eyeCareTimeElapsed]);
   
   return { isTrayActive };
 }
