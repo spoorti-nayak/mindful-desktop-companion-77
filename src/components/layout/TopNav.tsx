@@ -1,5 +1,5 @@
 
-import { Bell, Moon, Sun, User, LogOut } from "lucide-react";
+import { Bell, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,33 +9,36 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useState } from "react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useState } from "react";
 
 export function TopNav() {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-
-  const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    document.documentElement.classList.toggle("dark", newTheme === "dark");
-  };
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
+    toast.success("Successfully logged out");
     navigate("/login");
   };
 
-  const handleNotification = () => {
-    toast("Notification", {
-      description: "You have a new notification!",
-    });
-  };
-  
+  // Demo notifications for preview
+  const notifications = [
+    { id: 1, title: "Welcome back!", message: "Great to see you again!" },
+    { id: 2, title: "Tip", message: "Remember to take regular breaks" },
+    { id: 3, title: "Focus Time", message: "You've been productive today!" },
+  ];
+
   return (
     <div className="flex h-16 items-center justify-between border-b px-6">
       <div className="flex items-center gap-2">
@@ -46,18 +49,32 @@ export function TopNav() {
         <h1 className="text-xl font-semibold">Attention Please!</h1>
       </div>
       <div className="flex items-center space-x-4">
-        <Button variant="ghost" size="icon" onClick={handleNotification}>
-          <Bell className="h-5 w-5" />
-        </Button>
-        
-        <Button variant="ghost" size="icon" onClick={toggleTheme}>
-          {theme === "light" ? (
-            <Moon className="h-5 w-5" />
-          ) : (
-            <Sun className="h-5 w-5" />
-          )}
-        </Button>
-        
+        <Sheet open={isNotificationOpen} onOpenChange={setIsNotificationOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <Bell className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>Notifications</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4 space-y-4">
+              {notifications.map((notification) => (
+                <div
+                  key={notification.id}
+                  className="rounded-lg border p-4 hover:bg-accent"
+                >
+                  <h3 className="font-medium">{notification.title}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {notification.message}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </SheetContent>
+        </Sheet>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full border">
