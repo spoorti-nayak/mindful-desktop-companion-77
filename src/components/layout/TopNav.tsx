@@ -1,5 +1,5 @@
 
-import { Bell, LogOut, User } from "lucide-react";
+import { Bell, Moon, Sun, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,11 +20,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useState } from "react";
+import { useTheme } from "next-themes";
 
 export function TopNav() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const { theme, setTheme } = useTheme();
+
+  const toggleTheme = () => {
+    const newTheme = theme === "light" ? "dark" : "light";
+    setTheme(newTheme);
+  };
 
   const handleLogout = () => {
     logout();
@@ -74,6 +81,14 @@ export function TopNav() {
             </div>
           </SheetContent>
         </Sheet>
+
+        <Button variant="ghost" size="icon" onClick={toggleTheme}>
+          {theme === "light" ? (
+            <Moon className="h-5 w-5" />
+          ) : (
+            <Sun className="h-5 w-5" />
+          )}
+        </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
