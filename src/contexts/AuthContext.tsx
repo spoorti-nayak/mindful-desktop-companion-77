@@ -29,6 +29,12 @@ const DEMO_USERS = [
     name: "Demo User",
     email: "demo@example.com",
     password: "password123"
+  },
+  {
+    id: "demo-user-2",
+    name: "Test User",
+    email: "test@example.com",
+    password: "test123"
   }
 ];
 
@@ -36,6 +42,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  
+  // Store registered users in session
+  const [registeredUsers, setRegisteredUsers] = useState<Array<typeof DEMO_USERS[0]>>(() => {
+    const stored = sessionStorage.getItem("registeredUsers");
+    return stored ? JSON.parse(stored) : [...DEMO_USERS];
+  });
+
+  useEffect(() => {
+    // Update session storage when registered users change
+    sessionStorage.setItem("registeredUsers", JSON.stringify(registeredUsers));
+  }, [registeredUsers]);
 
   useEffect(() => {
     // Check if user is logged in on mount
@@ -49,8 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      // In preview mode, use the demo user
-      const demoUser = DEMO_USERS.find(u => u.email === email && u.password === password);
+      // Check if this is a registered user in our demo environment
+      const demoUser = registeredUsers.find(u => u.email === email && u.password === password);
       
       if (demoUser) {
         const userData = {
@@ -88,23 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true;
       } catch (error) {
         console.error("Backend login error:", error);
-        sonnerToast.error("Unable to connect to backend, using demo mode instead");
-        
-        // If backend fails but credentials match demo user, allow login
-        if (demoUser) {
-          const userData = {
-            id: demoUser.id,
-            name: demoUser.name,
-            email: demoUser.email
-          };
-          
-          setUser(userData);
-          localStorage.setItem("user", JSON.stringify(userData));
-          sonnerToast.success(`Welcome back, ${userData.name}!`);
-          return true;
-        }
-        
-        sonnerToast.error("Login failed: Invalid email or password");
+        sonnerToast.error("Invalid email or password");
         return false;
       }
     } catch (error) {
@@ -119,19 +120,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = async (name: string, email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      // Check if email is already used by demo users
-      const existingUser = DEMO_USERS.find(u => u.email === email);
+      // Check if email is already used
+      const existingUser = registeredUsers.find(u => u.email === email);
       if (existingUser) {
         sonnerToast.error("Signup failed: Email already in use");
         return false;
       }
 
-      // Create new demo user (only in memory for preview)
+      // Create new demo user
       const newUser = {
         id: `demo-user-${Date.now()}`,
         name,
-        email
+        email,
+        password // Store password for demo mode only
       };
+      
+      // Add to registered users
+      setRegisteredUsers(prev => [...prev, newUser]);
       
       // Try to sign up with backend if not in preview mode
       try {
@@ -150,17 +155,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return false;
         }
 
-        setUser(data.user);
-        localStorage.setItem("user", JSON.stringify(data.user));
+        const userData = {
+          id: data.user?.id || newUser.id,
+          name: data.user?.name || name,
+          email: data.user?.email || email
+        };
+        
+        setUser(userData);
+        localStorage.setItem("user", JSON.stringify(userData));
         sonnerToast.success(`Welcome, ${name}!`);
         return true;
       } catch (error) {
         console.error("Backend signup error:", error);
-        sonnerToast.info("Using preview mode: Account created locally only");
+        sonnerToast.info("Using preview mode: Account created locally");
         
-        // If backend fails, create a local user
-        setUser(newUser);
-        localStorage.setItem("user", JSON.stringify(newUser));
+        // If backend fails, use the local user
+        const userData = {
+          id: newUser.id,
+          name: newUser.name,
+          email: newUser.email
+        };
+        
+        setUser(userData);
+        localStorage.setItem("user", JSON.stringify(userData));
         sonnerToast.success(`Welcome, ${name}!`);
         return true;
       }
