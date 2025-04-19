@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TimerProvider } from "@/contexts/TimerContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { ThemeProvider } from "next-themes";
 import Welcome from "./pages/Welcome";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -39,44 +40,46 @@ const RootRedirect = () => {
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TimerProvider>
-          <TooltipProvider>
-            {/* Center toast for focus-related notifications */}
-            <Toaster />
-            {/* Bottom right toast for regular UI notifications */}
-            <Sonner position="bottom-right" />
-            <BrowserRouter>
-              <Routes>
-                {/* Welcome/Landing Page */}
-                <Route path="/welcome" element={<Welcome />} />
-                
-                {/* Auth Routes */}
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                
-                {/* Protected Routes */}
-                <Route 
-                  path="/dashboard" 
-                  element={
-                    <ProtectedRoute>
-                      <Index />
-                    </ProtectedRoute>
-                  } 
-                />
-                
-                {/* Root path conditionally redirects based on auth state */}
-                <Route path="/" element={<RootRedirect />} />
-                
-                {/* Catch-all route */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
-        </TimerProvider>
-      </AuthProvider>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <AuthProvider>
+          <TimerProvider>
+            <TooltipProvider>
+              {/* Center toast for focus-related notifications */}
+              <Toaster />
+              {/* Bottom right toast for regular UI notifications */}
+              <Sonner position="bottom-right" />
+              <BrowserRouter>
+                <Routes>
+                  {/* Welcome/Landing Page */}
+                  <Route path="/welcome" element={<Welcome />} />
+                  
+                  {/* Auth Routes */}
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<Signup />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  
+                  {/* Protected Routes */}
+                  <Route 
+                    path="/dashboard" 
+                    element={
+                      <ProtectedRoute>
+                        <Index />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  
+                  {/* Root path conditionally redirects based on auth state */}
+                  <Route path="/" element={<RootRedirect />} />
+                  
+                  {/* Catch-all route */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </TooltipProvider>
+          </TimerProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 };
