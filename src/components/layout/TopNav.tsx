@@ -20,7 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
-import { useTheme } from "next-themes";
+import { ThemeProvider, useTheme } from "next-themes";
 
 export function TopNav() {
   const { user, logout } = useAuth();
@@ -35,7 +35,7 @@ export function TopNav() {
   }, []);
 
   const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
+    const newTheme = theme === "dark" ? "light" : "dark";
     setTheme(newTheme);
     toast.success(`Theme changed to ${newTheme} mode`);
   };
@@ -91,10 +91,10 @@ export function TopNav() {
 
         {mounted && (
           <Button variant="ghost" size="icon" onClick={toggleTheme}>
-            {theme === "light" ? (
-              <Moon className="h-5 w-5" />
-            ) : (
+            {theme === "dark" ? (
               <Sun className="h-5 w-5" />
+            ) : (
+              <Moon className="h-5 w-5" />
             )}
           </Button>
         )}
