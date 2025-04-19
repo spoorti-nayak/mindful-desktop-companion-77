@@ -6,9 +6,10 @@
   "main": "electron-main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "nodemon --exec electron .",
+    "dev": "cross-env NODE_ENV=development nodemon --exec electron .",
     "api": "node index.js --api-only",
-    "build": "electron-builder",
+    "build": "npm run build:react && electron-builder",
+    "build:react": "cd .. && npm run build",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
@@ -19,30 +20,36 @@
     "get-windows": "^1.0.5",
     "mongoose": "^8.1.1",
     "opencv4nodejs": "^5.6.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "cross-env": "^7.0.3"
   },
   "devDependencies": {
     "electron-builder": "^24.9.1",
-    "nodemon": "^3.0.3"
+    "nodemon": "^3.0.3",
+    "cross-env": "^7.0.3"
   },
   "build": {
     "appId": "com.mindful.desktopcompanion",
     "productName": "Mindful Desktop Companion",
     "mac": {
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "target": "dmg"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "assets/icon.ico"
     },
     "linux": {
       "target": "AppImage",
-      "category": "Productivity"
+      "category": "Productivity",
+      "icon": "assets/icon.png"
     },
     "directories": {
       "output": "dist"
     },
     "files": [
       "**/*",
+      "../build/**/*",
       "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
       "!**/node_modules/*.d.ts",

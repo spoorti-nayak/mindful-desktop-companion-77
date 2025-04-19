@@ -11,6 +11,7 @@ class SystemTrayService {
   private listeners: Array<(message: string, isFocusAlert: boolean) => void> = [];
   private isDesktopApp: boolean = false;
   private apiBaseUrl: string = 'http://localhost:5000/api';
+  private trayIconState: 'default' | 'active' | 'rest' = 'default';
 
   private constructor() {
     console.log("System tray service initialized");
@@ -124,6 +125,9 @@ class SystemTrayService {
   private notifyEyeCareBreak(): void {
     const message = "Time to rest your eyes! Look 20ft away for 20 seconds.";
     this.listeners.forEach(listener => listener(message, true));
+    
+    // Update tray icon to rest mode
+    this.setTrayIcon('rest');
   }
 
   public addNotificationListener(callback: (message: string, isFocusAlert: boolean) => void): void {
@@ -194,6 +198,17 @@ class SystemTrayService {
       (window as any).electron.send('set-tray-tooltip', tooltip);
     }
     console.log(`Set tray tooltip to: ${tooltip}`);
+  }
+  
+  // New method to set the tray icon state
+  public setTrayIcon(state: 'default' | 'active' | 'rest'): void {
+    if (this.trayIconState === state) return; // No change needed
+    
+    this.trayIconState = state;
+    if (this.isDesktopApp && (window as any).electron) {
+      (window as any).electron.send('set-tray-icon', state);
+    }
+    console.log(`Set tray icon state to: ${state}`);
   }
 }
 

@@ -1,17 +1,19 @@
 
-const { app, BrowserWindow, Tray, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electron');
 const path = require('path');
 const getWindows = require('get-windows'); // Updated from active-win
 const express = require('express');
 const { BlinkDetector } = require('./services/blink-detector');
 const { connectDB } = require('./db/mongodb');
 const { app: expressApp } = require('./index');
+require('dotenv').config(); // Load environment variables from .env file
 
 let mainWindow;
 let tray = null;
 let activeWindowInterval;
 let blinkDetector;
 let server;
+let isMonitoring = true;
 
 async function createWindow() {
   // Connect to MongoDB
@@ -23,9 +25,11 @@ async function createWindow() {
     console.log(`Express server running on port ${PORT}`);
   });
 
+  // Create the browser window but don't show it by default
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    show: false, // Start app minimized to tray
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -40,7 +44,7 @@ async function createWindow() {
     
   mainWindow.loadURL(startUrl);
 
-  // Initialize system tray
+  // Initialize system tray immediately
   createTray();
   
   // Start monitoring active windows
@@ -62,10 +66,33 @@ async function createWindow() {
 }
 
 function createTray() {
-  tray = new Tray(path.join(__dirname, 'icon.png'));
+  // Use a proper icon path that works in production
+  const iconPath = path.join(__dirname, 'assets', 'icon.png');
+  
+  // Create native image from file
+  const trayIcon = nativeImage.createFromPath(iconPath);
+  tray = new Tray(trayIcon.resize({ width: 16, height: 16 }));
+  
+  // Create context menu
+  updateTrayMenu();
+  
+  tray.setToolTip('Mindful Desktop Companion');
+  
+  tray.on('click', () => {
+    mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+  });
+}
+
+function updateTrayMenu() {
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Show App', click: () => mainWindow.show() },
-    { label: 'Pause Monitoring', click: toggleMonitoring },
+    { 
+      label: mainWindow.isVisible() ? 'Hide App' : 'Show App', 
+      click: () => mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show() 
+    },
+    { 
+      label: isMonitoring ? 'Pause Monitoring' : 'Resume Monitoring', 
+      click: toggleMonitoring 
+    },
     { type: 'separator' },
     { label: 'Quit', click: () => {
       app.isQuitting = true;
@@ -73,16 +100,13 @@ function createTray() {
     }}
   ]);
   
-  tray.setToolTip('Mindful Desktop Companion');
   tray.setContextMenu(contextMenu);
-  
-  tray.on('click', () => {
-    mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
-  });
 }
 
 function startActiveWindowMonitoring() {
   activeWindowInterval = setInterval(async () => {
+    if (!isMonitoring) return;
+    
     try {
       const windows = await getWindows(); // Updated usage
       if (windows && windows.length > 0) {
@@ -105,44 +129,33 @@ function initializeBlinkDetection() {
     mainWindow.webContents.send('blink-detected');
   });
   
-  blinkDetector.start();
+  if (isMonitoring) {
+    blinkDetector.start();
+  }
 }
 
 function toggleMonitoring() {
-  if (activeWindowInterval) {
-    clearInterval(activeWindowInterval);
-    activeWindowInterval = null;
+  isMonitoring = !isMonitoring;
+  
+  if (!isMonitoring) {
+    if (activeWindowInterval) {
+      clearInterval(activeWindowInterval);
+      activeWindowInterval = null;
+    }
     
     if (blinkDetector) {
       blinkDetector.stop();
     }
-    
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: 'Show App', click: () => mainWindow.show() },
-      { label: 'Resume Monitoring', click: toggleMonitoring },
-      { type: 'separator' },
-      { label: 'Quit', click: () => {
-        app.isQuitting = true;
-        app.quit();
-      }}
-    ]));
   } else {
     startActiveWindowMonitoring();
     
     if (blinkDetector) {
       blinkDetector.start();
     }
-    
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: 'Show App', click: () => mainWindow.show() },
-      { label: 'Pause Monitoring', click: toggleMonitoring },
-      { type: 'separator' },
-      { label: 'Quit', click: () => {
-        app.isQuitting = true;
-        app.quit();
-      }}
-    ]));
   }
+  
+  // Update the tray menu to reflect the new state
+  updateTrayMenu();
 }
 
 // Handle IPC events from the renderer
@@ -161,6 +174,19 @@ ipcMain.on('set-tray-tooltip', (event, tooltip) => {
   if (tray) tray.setToolTip(tooltip);
 });
 
+// Add a new handler for setting tray icon
+ipcMain.on('set-tray-icon', (event, iconType) => {
+  if (!tray) return;
+  
+  let iconName = 'icon.png';
+  if (iconType === 'active') iconName = 'icon-active.png';
+  if (iconType === 'rest') iconName = 'icon-rest.png';
+  
+  const iconPath = path.join(__dirname, 'assets', iconName);
+  const trayIcon = nativeImage.createFromPath(iconPath);
+  tray.setImage(trayIcon.resize({ width: 16, height: 16 }));
+});
+
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
@@ -173,6 +199,8 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
+  } else if (!mainWindow.isVisible()) {
+    mainWindow.show();
   }
 });
 
@@ -180,5 +208,13 @@ app.on('before-quit', () => {
   app.isQuitting = true;
   if (server) {
     server.close();
+  }
+});
+
+// Ensure the app doesn't quit when all windows are closed
+app.on('window-all-closed', (event) => {
+  if (process.platform !== 'darwin') {
+    // Don't quit the app
+    event.preventDefault();
   }
 });

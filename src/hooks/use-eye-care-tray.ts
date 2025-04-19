@@ -59,18 +59,23 @@ export function useEyeCareTray() {
     }
   }, [user, isEyeCareActive, eyeCareWorkDuration, eyeCareRestDuration]);
   
-  // Update tray tooltip with current timer status
+  // Update tray tooltip and icon with current timer status
   useEffect(() => {
     const systemTray = SystemTrayService.getInstance();
     
     if (isEyeCareActive) {
       if (isEyeCareResting) {
         systemTray.setTrayTooltip(`Eye Rest: ${eyeCareTimeElapsed}s remaining`);
+        systemTray.setTrayIcon('rest');
       } else {
-        const minutesRemaining = Math.floor(eyeCareTimeElapsed / 60);
-        const secondsRemaining = eyeCareTimeElapsed % 60;
+        const minutesRemaining = Math.floor((eyeCareWorkDuration - eyeCareTimeElapsed) / 60);
+        const secondsRemaining = (eyeCareWorkDuration - eyeCareTimeElapsed) % 60;
         systemTray.setTrayTooltip(`Next Break: ${minutesRemaining}:${String(secondsRemaining).padStart(2, '0')}`);
+        systemTray.setTrayIcon('active');
       }
+    } else {
+      systemTray.setTrayTooltip('Mindful Desktop Companion');
+      systemTray.setTrayIcon('default');
     }
-  }, [isEyeCareActive, isEyeCareResting, eyeCareTimeElapsed]);
+  }, [isEyeCareActive, isEyeCareResting, eyeCareTimeElapsed, eyeCareWorkDuration]);
 }
