@@ -2,65 +2,17 @@
 {
   "name": "mindful-desktop-companion",
   "version": "1.0.0",
-  "description": "A desktop companion app to promote mindfulness and productivity",
   "main": "electron-main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "cross-env NODE_ENV=development nodemon --exec electron .",
-    "api": "node index.js --api-only",
-    "build": "npm run build:react && electron-builder",
-    "build:react": "cd .. && npm run build",
-    "postinstall": "electron-builder install-app-deps"
-  },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.1",
-    "electron": "^28.1.3",
-    "express": "^4.18.2",
-    "get-windows": "^1.0.5",
-    "mongoose": "^8.1.1",
-    "opencv4nodejs": "^5.6.0",
-    "uuid": "^9.0.1",
-    "cross-env": "^7.0.3"
-  },
-  "devDependencies": {
-    "electron-builder": "^24.9.1",
-    "nodemon": "^3.0.3",
-    "cross-env": "^7.0.3"
+    "dev": "cross-env NODE_ENV=development electron .",
+    "build": "electron-builder"
   },
   "build": {
     "appId": "com.mindful.desktopcompanion",
     "productName": "Mindful Desktop Companion",
-    "mac": {
-      "category": "public.app-category.productivity",
-      "target": "dmg"
-    },
-    "win": {
-      "target": "nsis",
-      "icon": "assets/icon.ico"
-    },
-    "linux": {
-      "target": "AppImage",
-      "category": "Productivity",
-      "icon": "assets/icon.png"
-    },
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "**/*",
-      "../build/**/*",
-      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
-      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
-      "!**/node_modules/*.d.ts",
-      "!**/node_modules/.bin",
-      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
-      "!.editorconfig",
-      "!**/._*",
-      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
-      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
-      "!**/{appveyor.yml,.travis.yml,circle.yml}",
-      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
-    ]
+    "mac": {"category": "public.app-category.productivity"},
+    "win": {"target": "nsis"},
+    "linux": {"target": "AppImage"}
   }
 }
