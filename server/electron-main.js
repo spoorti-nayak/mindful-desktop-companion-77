@@ -1,7 +1,6 @@
-
 const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electron');
 const path = require('path');
-const getWindows = require('get-windows'); // Updated from active-win
+const activeWin = require('active-win'); // Updated from get-windows
 const express = require('express');
 const { BlinkDetector } = require('./services/blink-detector');
 const { connectDB } = require('./db/mongodb');
@@ -108,13 +107,12 @@ function startActiveWindowMonitoring() {
     if (!isMonitoring) return;
     
     try {
-      const windows = await getWindows(); // Updated usage
-      if (windows && windows.length > 0) {
-        const activeWindow = windows[0]; // Usually the first window is active
+      const windowInfo = await activeWin(); // Updated from get-windows
+      if (windowInfo) {
         mainWindow.webContents.send('active-window-changed', {
-          title: activeWindow.title,
-          owner: activeWindow.owner?.name || 'Unknown',
-          path: activeWindow.owner?.path || 'Unknown'
+          title: windowInfo.title,
+          owner: windowInfo.owner.name || 'Unknown',
+          path: windowInfo.owner.path || 'Unknown'
         });
       }
     } catch (error) {
