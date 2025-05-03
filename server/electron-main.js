@@ -1,3 +1,4 @@
+
 const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electron');
 const path = require('path');
 const activeWin = require('active-win'); // Updated from get-windows
