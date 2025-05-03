@@ -2,6 +2,8 @@
 import * as tf from '@tensorflow/tfjs';
 import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
 import * as faceDetection from '@tensorflow-models/face-detection';
+import '@mediapipe/face_mesh';
+import '@mediapipe/face_detection';
 import { MediaPipeFaceMeshMediaPipeModelConfig } from '@tensorflow-models/face-landmarks-detection/dist/mediapipe/types';
 
 class BlinkDetectionService {
@@ -38,22 +40,22 @@ class BlinkDetectionService {
       await tf.ready();
       console.log('TensorFlow.js is ready');
       
-      // First initialize face detection model which is required by the face landmarks model
+      // Load the face detection model with explicit version references
       const faceDetectionModel = await faceDetection.createDetector(
         faceDetection.SupportedModels.MediaPipeFaceDetector,
         {
           runtime: 'mediapipe',
-          solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_detection',
+          solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4.1646425229',
         }
       );
       
       console.log('Face detection model loaded');
       
-      // Then load the MediaPipe FaceMesh model
+      // Then load the MediaPipe FaceMesh model with explicit version reference
       const config: MediaPipeFaceMeshMediaPipeModelConfig = {
         runtime: 'mediapipe',
         refineLandmarks: true,
-        solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh',
+        solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619',
       };
       
       this.model = await faceLandmarksDetection.createDetector(
