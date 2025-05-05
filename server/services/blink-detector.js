@@ -1,6 +1,18 @@
 
 const EventEmitter = require('events');
-const cv = require('opencv4nodejs'); // You'll need to install this package
+
+// Check if opencv4nodejs is available
+let cv = null;
+let isOpenCvAvailable = false;
+
+try {
+  cv = require('opencv4nodejs');
+  isOpenCvAvailable = true;
+  console.log('OpenCV loaded successfully');
+} catch (error) {
+  console.warn('OpenCV not available:', error.message);
+  console.warn('Blink detection will run in mock mode');
+}
 
 class BlinkDetector extends EventEmitter {
   constructor(options = {}) {
@@ -12,31 +24,70 @@ class BlinkDetector extends EventEmitter {
       ...options
     };
     
-    this.faceCascade = new cv.CascadeClassifier(cv.HAAR_EYE_CASCADE);
-    this.videoCapture = null;
+    this.isMockMode = !isOpenCvAvailable;
     this.isRunning = false;
     this.consecutiveFrames = 0;
+    this.mockBlinkInterval = null;
+    
+    if (!this.isMockMode) {
+      try {
+        this.faceCascade = new cv.CascadeClassifier(cv.HAAR_EYE_CASCADE);
+        this.videoCapture = null;
+      } catch (error) {
+        console.error('Error initializing OpenCV components:', error);
+        this.isMockMode = true;
+      }
+    }
   }
   
   start() {
     if (this.isRunning) return;
-    
-    this.videoCapture = new cv.VideoCapture(0);
     this.isRunning = true;
     
-    this.processFrames();
+    if (this.isMockMode) {
+      console.log('Starting blink detector in mock mode');
+      // Simulate random blinks in mock mode (every 3-8 seconds)
+      this.mockBlinkInterval = setInterval(() => {
+        if (Math.random() < 0.5) {
+          this.emit('blink');
+          console.log('Mock blink detected');
+        }
+      }, 3000 + Math.random() * 5000);
+    } else {
+      console.log('Starting blink detector with OpenCV');
+      try {
+        this.videoCapture = new cv.VideoCapture(0);
+        this.processFrames();
+      } catch (error) {
+        console.error('Failed to initialize video capture:', error);
+        // Fall back to mock mode if camera initialization fails
+        this.isMockMode = true;
+        this.start();
+      }
+    }
   }
   
   stop() {
     this.isRunning = false;
     
-    if (this.videoCapture) {
-      this.videoCapture.release();
-      this.videoCapture = null;
+    if (this.mockBlinkInterval) {
+      clearInterval(this.mockBlinkInterval);
+      this.mockBlinkInterval = null;
+    }
+    
+    if (!this.isMockMode && this.videoCapture) {
+      try {
+        this.videoCapture.release();
+        this.videoCapture = null;
+      } catch (error) {
+        console.error('Error releasing video capture:', error);
+      }
     }
   }
   
   async processFrames() {
+    if (!isOpenCvAvailable || this.isMockMode) return;
+    
     while (this.isRunning) {
       try {
         const frame = await this.videoCapture.readAsync();
@@ -68,11 +119,16 @@ class BlinkDetector extends EventEmitter {
         await new Promise(resolve => setTimeout(resolve, 10));
       } catch (error) {
         console.error('Error processing video frame:', error);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Longer delay on error
       }
     }
   }
   
   calculateEyeAspectRatio(face, grayFrame) {
+    if (this.isMockMode) {
+      return Math.random() < 0.1 ? 0.2 : 0.4; // Simulate occasional blinks
+    }
+    
     // This is a simplified version - a real implementation would:
     // 1. Extract eye regions from the face
     // 2. Find eye landmarks
@@ -86,4 +142,4 @@ class BlinkDetector extends EventEmitter {
   }
 }
 
-module.exports = { BlinkDetector };
+module.exports = { BlinkDetector, isOpenCvAvailable };
