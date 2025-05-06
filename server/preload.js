@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld('electron', {
   // Send messages from renderer to main
   send: (channel, data) => {
     // List of allowed channels to send to main process
-    const validChannels = ['show-tray', 'hide-tray', 'set-tray-tooltip'];
+    const validChannels = ['show-tray', 'hide-tray', 'set-tray-tooltip', 'set-tray-icon', 'show-native-notification'];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
     }

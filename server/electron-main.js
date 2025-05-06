@@ -1,5 +1,4 @@
-
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification } = require('electron');
 const path = require('path');
 const activeWin = require('active-win'); // Updated from get-windows
 const express = require('express');
@@ -65,10 +64,18 @@ async function createWindow() {
     if (!app.isQuitting) {
       event.preventDefault();
       mainWindow.hide();
+      showNotification("App Minimized", "Mindful Desktop Companion is still running in the system tray.");
       return false;
     }
     
     return true;
+  });
+  
+  // Add minimize handler to hide to system tray
+  mainWindow.on('minimize', (event) => {
+    event.preventDefault();
+    mainWindow.hide();
+    showNotification("App Minimized", "Mindful Desktop Companion is still running in the system tray.");
   });
 }
 
@@ -164,6 +171,19 @@ function toggleMonitoring() {
   updateTrayMenu();
 }
 
+// Function to show native notifications
+function showNotification(title, body) {
+  if (Notification.isSupported()) {
+    const notification = new Notification({
+      title: title,
+      body: body,
+      icon: path.join(__dirname, 'assets', 'icon.png')
+    });
+    
+    notification.show();
+  }
+}
+
 // Handle IPC events from the renderer
 ipcMain.on('show-tray', () => {
   if (!tray) createTray();
@@ -191,6 +211,11 @@ ipcMain.on('set-tray-icon', (event, iconType) => {
   const iconPath = path.join(__dirname, 'assets', iconName);
   const trayIcon = nativeImage.createFromPath(iconPath);
   tray.setImage(trayIcon.resize({ width: 16, height: 16 }));
+});
+
+// Add handler for native notifications
+ipcMain.on('show-native-notification', (event, {title, body}) => {
+  showNotification(title, body);
 });
 
 app.whenReady().then(createWindow);

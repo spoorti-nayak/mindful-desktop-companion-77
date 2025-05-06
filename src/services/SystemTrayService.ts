@@ -1,4 +1,3 @@
-
 // This service handles system tray functionality and active window monitoring
 
 class SystemTrayService {
@@ -114,20 +113,47 @@ class SystemTrayService {
 
   private notifyFocusNeeded(): void {
     const message = "You seem distracted. Try focusing on one task at a time.";
+    
+    // Show as native notification when in desktop mode
+    if (this.isDesktopApp && (window as any).electron) {
+      (window as any).electron.send('show-native-notification', {
+        title: "Focus Reminder", 
+        body: message
+      });
+    }
+    
     this.listeners.forEach(listener => listener(message, true));
   }
 
   private notifyEyeCare(): void {
     const message = "Remember to blink regularly to reduce eye strain.";
+    
+    // Show as native notification when in desktop mode
+    if (this.isDesktopApp && (window as any).electron) {
+      (window as any).electron.send('show-native-notification', {
+        title: "Blink Reminder", 
+        body: message
+      });
+    }
+    
     this.listeners.forEach(listener => listener(message, true));
   }
   
   private notifyEyeCareBreak(): void {
     const message = "Time to rest your eyes! Look 20ft away for 20 seconds.";
-    this.listeners.forEach(listener => listener(message, true));
+    
+    // Show as native notification when in desktop mode
+    if (this.isDesktopApp && (window as any).electron) {
+      (window as any).electron.send('show-native-notification', {
+        title: "Eye Care Break", 
+        body: message
+      });
+    }
     
     // Update tray icon to rest mode
     this.setTrayIcon('rest');
+    
+    this.listeners.forEach(listener => listener(message, true));
   }
 
   public addNotificationListener(callback: (message: string, isFocusAlert: boolean) => void): void {
@@ -200,7 +226,7 @@ class SystemTrayService {
     console.log(`Set tray tooltip to: ${tooltip}`);
   }
   
-  // New method to set the tray icon state
+  // Method to set the tray icon state
   public setTrayIcon(state: 'default' | 'active' | 'rest'): void {
     if (this.trayIconState === state) return; // No change needed
     
