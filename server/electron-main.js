@@ -25,11 +25,11 @@ async function createWindow() {
     console.log(`Express server running on port ${PORT}`);
   });
 
-  // Create the browser window but don't show it by default
+  // Create the browser window but show it by default
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    show: false, // Start app minimized to tray
+    show: true, // Changed to true so window is shown on startup
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -43,8 +43,13 @@ async function createWindow() {
     : `file://${path.join(__dirname, '../build/index.html')}`;
     
   mainWindow.loadURL(startUrl);
+  
+  // Open DevTools in development mode
+  if (process.env.NODE_ENV === 'development') {
+    mainWindow.webContents.openDevTools();
+  }
 
-  // Initialize system tray immediately
+  // Initialize system tray
   createTray();
   
   // Start monitoring active windows
