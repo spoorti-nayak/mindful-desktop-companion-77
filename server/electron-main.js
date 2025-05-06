@@ -25,11 +25,11 @@ async function createWindow() {
     console.log(`Express server running on port ${PORT}`);
   });
 
-  // Create the browser window but don't show it by default
+  // Create the browser window and show it by default
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    show: false, // Start app minimized to tray
+    show: true, // Changed to true to show the window on startup
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -37,14 +37,21 @@ async function createWindow() {
     }
   });
 
-  // Load the app - in production, load the bundled app
+  // Load the app - in development, load from the Vite dev server on port 8080
   const startUrl = process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:3000' 
+    ? 'http://localhost:8080' 
     : `file://${path.join(__dirname, '../build/index.html')}`;
+  
+  console.log(`Loading application from: ${startUrl}`);
     
   mainWindow.loadURL(startUrl);
 
-  // Initialize system tray immediately
+  // Open DevTools in development mode
+  if (process.env.NODE_ENV === 'development') {
+    mainWindow.webContents.openDevTools();
+  }
+
+  // Initialize system tray
   createTray();
   
   // Start monitoring active windows
