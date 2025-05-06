@@ -1,17 +1,26 @@
-
 const EventEmitter = require('events');
 
 // Check if opencv4nodejs is available
 let cv = null;
 let isOpenCvAvailable = false;
 
-try {
-  cv = require('opencv4nodejs');
-  isOpenCvAvailable = true;
-  console.log('OpenCV loaded successfully');
-} catch (error) {
-  console.warn('OpenCV not available:', error.message);
-  console.warn('Blink detection will run in mock mode');
+// Check if running on Windows
+const isWindows = process.platform === 'win32';
+
+// On Windows, always use mock mode to avoid OpenCV installation issues
+if (isWindows) {
+  console.log('Running on Windows - using mock blink detection mode');
+  isOpenCvAvailable = false;
+} else {
+  // On non-Windows platforms, try to load OpenCV
+  try {
+    cv = require('opencv4nodejs');
+    isOpenCvAvailable = true;
+    console.log('OpenCV loaded successfully');
+  } catch (error) {
+    console.warn('OpenCV not available:', error.message);
+    console.warn('Blink detection will run in mock mode');
+  }
 }
 
 class BlinkDetector extends EventEmitter {
@@ -38,6 +47,8 @@ class BlinkDetector extends EventEmitter {
         this.isMockMode = true;
       }
     }
+    
+    console.log(`BlinkDetector initialized in ${this.isMockMode ? 'mock' : 'OpenCV'} mode`);
   }
   
   start() {
