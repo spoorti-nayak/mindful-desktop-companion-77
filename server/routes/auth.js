@@ -36,6 +36,8 @@ router.post('/signup', async (req, res) => {
   try {
     const { name, email, password } = req.body;
     
+    console.log(`Signup request received for email: ${email}`);
+    
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -51,6 +53,7 @@ router.post('/signup', async (req, res) => {
     });
     
     await newUser.save();
+    console.log(`New user saved with id: ${newUser.id}`);
     
     // Return the user without the password
     const userWithoutPassword = {

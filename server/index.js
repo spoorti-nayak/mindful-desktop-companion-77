@@ -15,7 +15,12 @@ app.use(cors());
 app.use(express.json());
 
 // Connect to MongoDB
-connectDB();
+console.log('Connecting to MongoDB...');
+connectDB().then(() => {
+  console.log('MongoDB connection established successfully');
+}).catch(err => {
+  console.error('MongoDB connection error:', err);
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
