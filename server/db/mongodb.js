@@ -10,15 +10,17 @@ const connectDB = async () => {
     console.log(`Attempting to connect to MongoDB at: ${mongoUri}`);
     
     const conn = await mongoose.connect(mongoUri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+      // Removed deprecated options
     });
     
     console.log(`MongoDB Connected: ${conn.connection.host}`);
     return conn;
   } catch (error) {
     console.error(`Error connecting to MongoDB: ${error.message}`);
-    process.exit(1);
+    // Don't exit process on connection error, just log it
+    // This allows the app to continue functioning with mock data
+    console.log('Application will continue with mock data');
+    return null;
   }
 };
 

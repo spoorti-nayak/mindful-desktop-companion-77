@@ -1,3 +1,4 @@
+
 const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification } = require('electron');
 const path = require('path');
 const activeWin = require('active-win'); // Updated from get-windows
@@ -13,6 +14,7 @@ let activeWindowInterval;
 let blinkDetector;
 let server;
 let isMonitoring = true;
+let isAppQuitting = false;
 
 async function createWindow() {
   // Connect to MongoDB
@@ -93,15 +95,23 @@ function createTray() {
   tray.setToolTip('Mindful Desktop Companion');
   
   tray.on('click', () => {
-    mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+    }
   });
 }
 
 function updateTrayMenu() {
+  if (!tray || (mainWindow && mainWindow.isDestroyed())) return;
+  
   const contextMenu = Menu.buildFromTemplate([
     { 
-      label: mainWindow.isVisible() ? 'Hide App' : 'Show App', 
-      click: () => mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show() 
+      label: mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() ? 'Hide App' : 'Show App', 
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+        }
+      }
     },
     { 
       label: isMonitoring ? 'Pause Monitoring' : 'Resume Monitoring', 
@@ -118,12 +128,19 @@ function updateTrayMenu() {
 }
 
 function startActiveWindowMonitoring() {
+  // Clear any existing interval
+  if (activeWindowInterval) {
+    clearInterval(activeWindowInterval);
+  }
+  
   activeWindowInterval = setInterval(async () => {
-    if (!isMonitoring) return;
+    if (!isMonitoring || isAppQuitting || !mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
     
     try {
       const activeWindow = await activeWin(); // Updated usage for active-win
-      if (activeWindow) {
+      if (activeWindow && mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('active-window-changed', {
           title: activeWindow.title,
           owner: activeWindow.owner?.name || 'Unknown',
@@ -139,7 +156,9 @@ function startActiveWindowMonitoring() {
 function initializeBlinkDetection() {
   blinkDetector = new BlinkDetector();
   blinkDetector.on('blink', () => {
-    mainWindow.webContents.send('blink-detected');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('blink-detected');
+    }
   });
   
   if (isMonitoring) {
@@ -230,15 +249,22 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
-  } else if (!mainWindow.isVisible()) {
+  } else if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
     mainWindow.show();
   }
 });
 
 app.on('before-quit', () => {
+  isAppQuitting = true;
   app.isQuitting = true;
   if (server) {
     server.close();
+  }
+  
+  // Clear interval to prevent further errors
+  if (activeWindowInterval) {
+    clearInterval(activeWindowInterval);
+    activeWindowInterval = null;
   }
 });
 
