@@ -12,8 +12,7 @@ class BlinkDetectionService {
   private stream: MediaStream | null = null;
   private isRunning: boolean = false;
   private listeners: Array<(message: string) => void> = [];
-  private fallbackMode: boolean = false;
-  private fallbackInterval: any = null;
+  private isModelLoaded: boolean = false;
   
   // EAR (Eye Aspect Ratio) threshold
   private EAR_THRESHOLD = 0.2;
@@ -41,72 +40,45 @@ class BlinkDetectionService {
       await tf.ready();
       console.log('TensorFlow.js is ready');
       
-      // Try to load the face detection model, but don't fail if it doesn't work
-      try {
-        // Load the face detection model with explicit version references
-        const faceDetectionModel = await faceDetection.createDetector(
-          faceDetection.SupportedModels.MediaPipeFaceDetector,
-          {
-            runtime: 'mediapipe',
-            solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4.1646425229',
-          }
-        );
-        
-        console.log('Face detection model loaded');
-        
-        // Then load the MediaPipe FaceMesh model with explicit version reference
-        const config: MediaPipeFaceMeshMediaPipeModelConfig = {
+      // Load the face detection model with explicit version references
+      const faceDetectionModel = await faceDetection.createDetector(
+        faceDetection.SupportedModels.MediaPipeFaceDetector,
+        {
           runtime: 'mediapipe',
-          refineLandmarks: true,
-          solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619',
-        };
-        
-        this.model = await faceLandmarksDetection.createDetector(
-          faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh,
-          config
-        );
-        
-        console.log('Face landmarks detection model loaded');
-      } catch (error) {
-        console.warn('Failed to load face detection models:', error);
-        console.warn('Will use fallback mode for blink detection');
-        this.fallbackMode = true;
-      }
+          solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4.1646425229',
+        }
+      );
+      
+      console.log('Face detection model loaded');
+      
+      // Then load the MediaPipe FaceMesh model with explicit version reference
+      const config: MediaPipeFaceMeshMediaPipeModelConfig = {
+        runtime: 'mediapipe',
+        refineLandmarks: true,
+        solutionPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619',
+      };
+      
+      this.model = await faceLandmarksDetection.createDetector(
+        faceLandmarksDetection.SupportedModels.MediaPipeFaceMesh,
+        config
+      );
+      
+      console.log('Face landmarks detection model loaded');
+      this.isModelLoaded = true;
     } catch (error) {
-      console.error('Failed to initialize TensorFlow.js:', error);
-      this.fallbackMode = true;
+      console.error('Failed to load face detection models:', error);
+      this.isModelLoaded = false;
     }
   }
 
   public async startDetection(): Promise<boolean> {
-    if (this.isRunning) return false;
-
-    // If in fallback mode, use a timer-based approach
-    if (this.fallbackMode) {
-      console.log('Starting blink detection in fallback mode');
-      this.isRunning = true;
-      this.lastBlinkTime = Date.now();
-      this.blinkCount = 0;
-      
-      // Simulate random blinks (every 3-8 seconds)
-      this.fallbackInterval = setInterval(() => {
-        this.blinkCount += 1;
-        this.lastBlinkTime = Date.now();
-        console.log('Fallback mode: Simulated blink detected');
-      }, 3000 + Math.random() * 5000);
-      
-      this.startBlinkRateCheck();
-      return true;
+    if (this.isRunning) return true;
+    if (!this.isModelLoaded) {
+      console.warn('Face detection model not loaded, cannot start detection');
+      return false;
     }
 
-    // Regular mode with camera
     try {
-      if (!this.model) {
-        console.warn('Face detection model not loaded, falling back to timer mode');
-        this.fallbackMode = true;
-        return this.startDetection();
-      }
-      
       // Request camera access
       this.stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user' }
@@ -139,25 +111,20 @@ class BlinkDetectionService {
       return true;
     } catch (error) {
       console.error('Failed to start blink detection with camera:', error);
-      console.log('Falling back to timer-based blink detection');
-      
-      // If camera fails, fall back to timer approach
       this.cleanUp();
-      this.fallbackMode = true;
-      return this.startDetection();
+      return false;
     }
   }
 
   public stopDetection(): void {
     if (!this.isRunning) return;
     
-    if (this.fallbackMode && this.fallbackInterval) {
-      clearInterval(this.fallbackInterval);
-      this.fallbackInterval = null;
-    }
-    
     this.cleanUp();
     console.log('Blink detection stopped');
+  }
+
+  public isDetectionAvailable(): boolean {
+    return this.isModelLoaded;
   }
 
   private cleanUp(): void {
@@ -177,7 +144,7 @@ class BlinkDetectionService {
   }
 
   private async detectBlinks(): Promise<void> {
-    if (this.fallbackMode || !this.isRunning || !this.model || !this.videoEl) return;
+    if (!this.isRunning || !this.model || !this.videoEl) return;
 
     try {
       // Run face landmarks detection
@@ -205,6 +172,7 @@ class BlinkDetectionService {
           if (this.frameCounter >= this.BLINK_CONSECUTIVE_FRAMES) {
             this.blinkCount += 1;
             this.lastBlinkTime = Date.now();
+            console.log('Real blink detected');
           }
           // Reset the frame counter
           this.frameCounter = 0;

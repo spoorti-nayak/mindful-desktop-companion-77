@@ -6,7 +6,8 @@ import { useSystemTray } from '@/hooks/use-system-tray';
 
 export function useBlinkDetection() {
   const [isDetecting, setIsDetecting] = useState(false);
-  const [isSupported, setIsSupported] = useState(true);
+  const [isSupported, setIsSupported] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const { toast } = useToast();
   const { isTrayActive } = useSystemTray();
   
@@ -16,6 +17,7 @@ export function useBlinkDetection() {
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           setIsSupported(false);
+          setIsInitializing(false);
           console.error('Browser does not support getUserMedia API');
           return;
         }
@@ -25,15 +27,21 @@ export function useBlinkDetection() {
           .then(stream => {
             // Stop all tracks immediately after checking
             stream.getTracks().forEach(track => track.stop());
-            setIsSupported(true);
+            
+            // Check if the model is loaded
+            const blinkService = BlinkDetectionService.getInstance();
+            setIsSupported(blinkService.isDetectionAvailable());
+            setIsInitializing(false);
           })
           .catch(err => {
             console.error('Camera access denied:', err);
             setIsSupported(false);
+            setIsInitializing(false);
           });
       } catch (error) {
         console.error('Error checking camera support:', error);
         setIsSupported(false);
+        setIsInitializing(false);
       }
     };
     
@@ -55,8 +63,8 @@ export function useBlinkDetection() {
     // Add listener when component mounts
     blinkService.addBlinkRateListener(handleLowBlinkRate);
     
-    // Start detection if we're in tray mode
-    if (isTrayActive) {
+    // Start detection if we're in tray mode and it's supported
+    if (isTrayActive && isSupported && !isInitializing) {
       startDetection();
     }
     
@@ -65,7 +73,7 @@ export function useBlinkDetection() {
       blinkService.removeBlinkRateListener(handleLowBlinkRate);
       stopDetection();
     };
-  }, [toast, isTrayActive]);
+  }, [toast, isTrayActive, isSupported, isInitializing]);
   
   // Start blink detection
   const startDetection = async () => {
@@ -102,6 +110,7 @@ export function useBlinkDetection() {
   return {
     isDetecting,
     isSupported,
+    isInitializing,
     startDetection,
     stopDetection,
     toggleDetection

@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Eye, EyeOff, Clock, Activity } from "lucide-react";
+import { Eye, EyeOff, Clock, Activity, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTimer } from "@/contexts/TimerContext";
 import { useSystemTray } from "@/hooks/use-system-tray";
@@ -36,7 +36,7 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
   useEyeCareTray();
   
   // Initialize blink detection
-  const { isDetecting, isSupported, toggleDetection } = useBlinkDetection();
+  const { isDetecting, isSupported, isInitializing, toggleDetection } = useBlinkDetection();
   const [showBlinkAlert, setShowBlinkAlert] = useState(false);
   
   // Set up notifications for eye care events
@@ -61,12 +61,12 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
   
   // Show alert when blink detection isn't supported
   useEffect(() => {
-    if (!isSupported && isTrayActive) {
+    if (!isInitializing && !isSupported && isTrayActive) {
       setShowBlinkAlert(true);
     } else {
       setShowBlinkAlert(false);
     }
-  }, [isSupported, isTrayActive]);
+  }, [isSupported, isTrayActive, isInitializing]);
 
   const toggleActive = () => {
     if (isEyeCareActive) {
@@ -77,6 +77,16 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
   };
 
   const handleToggleBlinkDetection = async () => {
+    if (!isSupported) {
+      toast({
+        title: "Blink Detection Unavailable",
+        description: "Camera access or required models are not available. Blink detection is disabled.",
+        duration: 8000,
+        variant: "destructive"
+      });
+      return;
+    }
+    
     const success = await toggleDetection();
     
     if (success) {
@@ -85,17 +95,11 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
         description: "We'll monitor your blink rate and remind you to blink more often.",
         duration: 5000,
       });
-    } else if (isSupported) {
+    } else {
       toast({
         title: "Blink Detection Deactivated",
         description: "Blink rate monitoring has been turned off.",
         duration: 5000,
-      });
-    } else {
-      toast({
-        title: "Camera Access Required",
-        description: "Please enable camera access to use blink detection.",
-        duration: 8000,
       });
     }
   };
@@ -114,10 +118,20 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
       <CardContent className="flex flex-col items-center space-y-4">
         {showBlinkAlert && (
           <Alert variant="destructive" className="mb-4">
-            <AlertTitle>Camera access required</AlertTitle>
+            <AlertTriangle className="h-4 w-4 mr-2" />
+            <AlertTitle>Blink Detection Unavailable</AlertTitle>
             <AlertDescription>
-              Blink detection requires camera access to monitor your blink rate.
-              Please allow camera permissions in your browser settings.
+              Blink detection requires camera access and facial detection models.
+              These are not available in your current environment.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {isInitializing && (
+          <Alert variant="default" className="mb-4 bg-muted">
+            <AlertTitle>Initializing blink detection</AlertTitle>
+            <AlertDescription>
+              Loading facial detection models and checking camera access...
             </AlertDescription>
           </Alert>
         )}
@@ -190,9 +204,9 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
           onClick={handleToggleBlinkDetection}
           className={cn(
             "rounded-full mt-2",
-            !isSupported && "opacity-50 cursor-not-allowed"
+            (!isSupported || isInitializing) && "opacity-50 cursor-not-allowed"
           )}
-          disabled={!isSupported}
+          disabled={!isSupported || isInitializing}
         >
           <Activity className="mr-2 h-4 w-4" />
           {isDetecting ? "Disable Blink Detection" : "Enable Blink Detection"}
@@ -213,7 +227,7 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
         {isDetecting && (
           <div className="text-xs text-green-500 flex items-center">
             <Activity className="h-3 w-3 mr-1 animate-pulse" />
-            Blink detection active - monitoring your blink rate
+            Actual blink detection active - monitoring your blink rate
           </div>
         )}
       </CardContent>

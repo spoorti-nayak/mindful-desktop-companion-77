@@ -1,26 +1,17 @@
+
 const EventEmitter = require('events');
 
 // Check if opencv4nodejs is available
 let cv = null;
 let isOpenCvAvailable = false;
 
-// Check if running on Windows
-const isWindows = process.platform === 'win32';
-
-// On Windows, always use mock mode to avoid OpenCV installation issues
-if (isWindows) {
-  console.log('Running on Windows - using mock blink detection mode');
-  isOpenCvAvailable = false;
-} else {
-  // On non-Windows platforms, try to load OpenCV
-  try {
-    cv = require('opencv4nodejs');
-    isOpenCvAvailable = true;
-    console.log('OpenCV loaded successfully');
-  } catch (error) {
-    console.warn('OpenCV not available:', error.message);
-    console.warn('Blink detection will run in mock mode');
-  }
+try {
+  cv = require('opencv4nodejs');
+  isOpenCvAvailable = true;
+  console.log('OpenCV loaded successfully');
+} catch (error) {
+  console.warn('OpenCV not available:', error.message);
+  console.warn('Blink detection will be disabled');
 }
 
 class BlinkDetector extends EventEmitter {
@@ -33,60 +24,42 @@ class BlinkDetector extends EventEmitter {
       ...options
     };
     
-    this.isMockMode = !isOpenCvAvailable;
     this.isRunning = false;
     this.consecutiveFrames = 0;
-    this.mockBlinkInterval = null;
     
-    if (!this.isMockMode) {
+    if (isOpenCvAvailable) {
       try {
         this.faceCascade = new cv.CascadeClassifier(cv.HAAR_EYE_CASCADE);
         this.videoCapture = null;
+        console.log('BlinkDetector initialized with OpenCV');
       } catch (error) {
         console.error('Error initializing OpenCV components:', error);
-        this.isMockMode = true;
+        console.warn('Blink detection will be disabled');
       }
+    } else {
+      console.log('BlinkDetector disabled - OpenCV not available');
     }
-    
-    console.log(`BlinkDetector initialized in ${this.isMockMode ? 'mock' : 'OpenCV'} mode`);
   }
   
   start() {
-    if (this.isRunning) return;
-    this.isRunning = true;
+    if (this.isRunning || !isOpenCvAvailable) return;
     
-    if (this.isMockMode) {
-      console.log('Starting blink detector in mock mode');
-      // Simulate random blinks in mock mode (every 3-8 seconds)
-      this.mockBlinkInterval = setInterval(() => {
-        if (Math.random() < 0.5) {
-          this.emit('blink');
-          console.log('Mock blink detected');
-        }
-      }, 3000 + Math.random() * 5000);
-    } else {
-      console.log('Starting blink detector with OpenCV');
-      try {
-        this.videoCapture = new cv.VideoCapture(0);
-        this.processFrames();
-      } catch (error) {
-        console.error('Failed to initialize video capture:', error);
-        // Fall back to mock mode if camera initialization fails
-        this.isMockMode = true;
-        this.start();
-      }
+    this.isRunning = true;
+    console.log('Starting blink detector with OpenCV');
+    
+    try {
+      this.videoCapture = new cv.VideoCapture(0);
+      this.processFrames();
+    } catch (error) {
+      console.error('Failed to initialize video capture:', error);
+      this.isRunning = false;
     }
   }
   
   stop() {
     this.isRunning = false;
     
-    if (this.mockBlinkInterval) {
-      clearInterval(this.mockBlinkInterval);
-      this.mockBlinkInterval = null;
-    }
-    
-    if (!this.isMockMode && this.videoCapture) {
+    if (isOpenCvAvailable && this.videoCapture) {
       try {
         this.videoCapture.release();
         this.videoCapture = null;
@@ -97,7 +70,7 @@ class BlinkDetector extends EventEmitter {
   }
   
   async processFrames() {
-    if (!isOpenCvAvailable || this.isMockMode) return;
+    if (!isOpenCvAvailable) return;
     
     while (this.isRunning) {
       try {
@@ -136,20 +109,28 @@ class BlinkDetector extends EventEmitter {
   }
   
   calculateEyeAspectRatio(face, grayFrame) {
-    if (this.isMockMode) {
-      return Math.random() < 0.1 ? 0.2 : 0.4; // Simulate occasional blinks
-    }
+    if (!isOpenCvAvailable) return 0.5;
     
     // This is a simplified version - a real implementation would:
     // 1. Extract eye regions from the face
     // 2. Find eye landmarks
     // 3. Calculate the aspect ratio of the eye opening
     
-    // For a real implementation, you'd likely use a facial landmark detector
-    // like dlib or a deep learning model
+    // For now, we'll use a real detection algorithm based on the grayscale data
+    // This is more realistic than random values but still simplified
     
-    // Returning a dummy value here
-    return Math.random() < 0.1 ? 0.2 : 0.4; // Simulate occasional blinks
+    // Extract the eye region (simplified)
+    const eyeRegion = grayFrame.getRegion(
+      new cv.Rect(face.x + face.width * 0.2, face.y + face.height * 0.3, face.width * 0.6, face.height * 0.2)
+    );
+    
+    // Calculate average intensity in the region
+    const mean = eyeRegion.mean();
+    
+    // Use intensity to estimate eye openness (simplistic but better than random)
+    // Lower mean = darker = possibly closed eye
+    const normalized = mean.y / 255;
+    return normalized;
   }
 }
 
