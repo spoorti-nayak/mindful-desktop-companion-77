@@ -6,53 +6,25 @@ import { useSystemTray } from '@/hooks/use-system-tray';
 
 export function useBlinkDetection() {
   const [isDetecting, setIsDetecting] = useState(false);
-  const [isSupported, setIsSupported] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(true);
+  const [isSupported] = useState(true); // Always supported now since we use timers
+  const [isInitializing, setIsInitializing] = useState(false);
   const { toast } = useToast();
   const { isTrayActive } = useSystemTray();
   
   useEffect(() => {
-    // Check if the browser supports the required APIs
-    const checkSupport = async () => {
-      try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          setIsSupported(false);
-          setIsInitializing(false);
-          console.error('Browser does not support getUserMedia API');
-          return;
-        }
-        
-        // Check if camera access is available
-        await navigator.mediaDevices.getUserMedia({ video: true })
-          .then(stream => {
-            // Stop all tracks immediately after checking
-            stream.getTracks().forEach(track => track.stop());
-            
-            // Check if the model is loaded
-            const blinkService = BlinkDetectionService.getInstance();
-            setIsSupported(blinkService.isDetectionAvailable());
-            setIsInitializing(false);
-          })
-          .catch(err => {
-            console.error('Camera access denied:', err);
-            setIsSupported(false);
-            setIsInitializing(false);
-          });
-      } catch (error) {
-        console.error('Error checking camera support:', error);
-        setIsSupported(false);
-        setIsInitializing(false);
-      }
-    };
+    setIsInitializing(false); // No initialization needed
     
-    checkSupport();
-  }, []);
+    // Start detection if we're in tray mode
+    if (isTrayActive && !isDetecting) {
+      startDetection();
+    }
+  }, [isTrayActive, isDetecting]);
   
   useEffect(() => {
     const blinkService = BlinkDetectionService.getInstance();
     
-    // Handler for low blink rate notifications
-    const handleLowBlinkRate = (message: string) => {
+    // Handler for blink reminders
+    const handleBlinkReminder = (message: string) => {
       toast({
         title: "Blink Reminder",
         description: message,
@@ -61,24 +33,17 @@ export function useBlinkDetection() {
     };
     
     // Add listener when component mounts
-    blinkService.addBlinkRateListener(handleLowBlinkRate);
-    
-    // Start detection if we're in tray mode and it's supported
-    if (isTrayActive && isSupported && !isInitializing) {
-      startDetection();
-    }
+    blinkService.addBlinkRateListener(handleBlinkReminder);
     
     // Clean up when component unmounts
     return () => {
-      blinkService.removeBlinkRateListener(handleLowBlinkRate);
+      blinkService.removeBlinkRateListener(handleBlinkReminder);
       stopDetection();
     };
-  }, [toast, isTrayActive, isSupported, isInitializing]);
+  }, [toast]);
   
   // Start blink detection
   const startDetection = async () => {
-    if (!isSupported) return false;
-    
     const blinkService = BlinkDetectionService.getInstance();
     const started = await blinkService.startDetection();
     

@@ -31,25 +31,10 @@ export function useEyeCareTray() {
               eyeCareWorkDuration: preferences.eyeCareSettings.workDuration || 1200, // 20 minutes default
               eyeCareRestDuration: preferences.eyeCareSettings.restDuration || 20 // 20 seconds default
             });
-          } else {
-            // Set default 20-minute work duration if no preferences found
-            updateTimerSettings({
-              pomodoroDuration: 25,
-              pomodoroBreakDuration: 5,
-              eyeCareWorkDuration: 1200, // 20 minutes
-              eyeCareRestDuration: 20 // 20 seconds
-            });
           }
         })
         .catch(error => {
           console.error('Failed to load preferences:', error);
-          // Still set default values on error
-          updateTimerSettings({
-            pomodoroDuration: 25,
-            pomodoroBreakDuration: 5,
-            eyeCareWorkDuration: 1200, // 20 minutes 
-            eyeCareRestDuration: 20 // 20 seconds
-          });
         });
     }
   }, [user, updateTimerSettings]);
@@ -80,7 +65,7 @@ export function useEyeCareTray() {
     
     if (isEyeCareActive) {
       if (isEyeCareResting) {
-        systemTray.setTrayTooltip(`Eye Rest: ${eyeCareTimeElapsed}s remaining`);
+        systemTray.setTrayTooltip(`Eye Rest: ${eyeCareRestDuration - eyeCareTimeElapsed}s remaining`);
         systemTray.setTrayIcon('rest');
       } else {
         const minutesRemaining = Math.floor((eyeCareWorkDuration - eyeCareTimeElapsed) / 60);
@@ -92,5 +77,5 @@ export function useEyeCareTray() {
       systemTray.setTrayTooltip('Mindful Desktop Companion');
       systemTray.setTrayIcon('default');
     }
-  }, [isEyeCareActive, isEyeCareResting, eyeCareTimeElapsed, eyeCareWorkDuration]);
+  }, [isEyeCareActive, isEyeCareResting, eyeCareTimeElapsed, eyeCareWorkDuration, eyeCareRestDuration]);
 }
