@@ -20,6 +20,7 @@ connectDB().then(() => {
   console.log('MongoDB connection established successfully');
 }).catch(err => {
   console.error('MongoDB connection error:', err);
+  process.exit(1); // Exit if MongoDB connection fails
 });
 
 // Routes

@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 
 // Connect to MongoDB
@@ -10,17 +9,15 @@ const connectDB = async () => {
     console.log(`Attempting to connect to MongoDB at: ${mongoUri}`);
     
     const conn = await mongoose.connect(mongoUri, {
-      // Removed deprecated options
+      // Keeping the connection options clean (deprecated options removed)
     });
     
     console.log(`MongoDB Connected: ${conn.connection.host}`);
     return conn;
   } catch (error) {
     console.error(`Error connecting to MongoDB: ${error.message}`);
-    // Don't exit process on connection error, just log it
-    // This allows the app to continue functioning with mock data
-    console.log('Application will continue with mock data');
-    return null;
+    console.error('MongoDB connection is required for this application to run.');
+    process.exit(1); // Exit the application if MongoDB connection fails
   }
 };
 
