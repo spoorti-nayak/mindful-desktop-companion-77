@@ -22,12 +22,14 @@ class BlinkDetector extends EventEmitter {
       eyeAspectRatioThreshold: 0.3, // Threshold for determining if eye is closed
       eyeConsecutiveFrames: 3, // Number of consecutive frames eye must be below threshold to count as a blink
       simulationMode: !isOpenCvAvailable, // Enable simulation if OpenCV is not available
+      blinkIntervalMinutes: 20, // Check blink rate every 20 minutes
       ...options
     };
     
     this.isRunning = false;
     this.consecutiveFrames = 0;
     this.simulationInterval = null;
+    this.lastNotificationTime = Date.now();
     
     if (isOpenCvAvailable) {
       try {
@@ -68,14 +70,19 @@ class BlinkDetector extends EventEmitter {
   }
   
   startSimulation() {
-    // Simulate occasional blinks with random intervals
+    // Convert minutes to milliseconds for interval timing
+    const intervalMs = this.options.blinkIntervalMinutes * 60 * 1000;
+    
+    // Simulate occasional blinks with 20-minute intervals
     this.simulationInterval = setInterval(() => {
-      // Simulate blinks occurring randomly every 3-10 seconds
-      if (Math.random() < 0.2) { // 20% chance each check
+      const now = Date.now();
+      // Only emit if enough time has passed since last notification
+      if (now - this.lastNotificationTime >= intervalMs) {
         this.emit('blink');
-        console.log('Simulated blink detected');
+        console.log('Simulated blink detected (20-minute interval)');
+        this.lastNotificationTime = now;
       }
-    }, 1000); // Check every second
+    }, 60000); // Check every minute but only emit based on the interval
   }
   
   stop() {

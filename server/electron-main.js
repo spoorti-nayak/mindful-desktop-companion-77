@@ -1,5 +1,4 @@
-
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification, screen } = require('electron');
 const path = require('path');
 const activeWin = require('active-win'); // Updated from get-windows
 const express = require('express');
@@ -26,6 +25,10 @@ async function createWindow() {
     server = expressApp.listen(PORT, () => {
       console.log(`Express server running on port ${PORT}`);
     });
+
+    // Get display dimensions
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.workAreaSize;
 
     // Create the browser window and show it by default
     mainWindow = new BrowserWindow({
@@ -219,11 +222,34 @@ function toggleMonitoring() {
   updateTrayMenu();
 }
 
-// Function to show native notifications
+// Function to show center-screen notifications
 function showNotification(title, body) {
   try {
     console.log(`Showing notification: ${title} - ${body}`);
+    
     if (Notification.isSupported()) {
+      // Get the primary display dimensions
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width, height } = primaryDisplay.workAreaSize;
+      
+      // Create a small invisible window to position the notification
+      const notificationWindow = new BrowserWindow({
+        width: 1,
+        height: 1,
+        x: Math.floor(width / 2),
+        y: Math.floor(height / 2),
+        show: false,
+        frame: false,
+        skipTaskbar: true,
+        transparent: true,
+        focusable: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true
+        }
+      });
+      
+      // Create the notification
       const notification = new Notification({
         title: title,
         body: body,
@@ -231,8 +257,21 @@ function showNotification(title, body) {
         silent: false
       });
       
-      notification.show();
-      console.log("Notification shown");
+      // After the window is created, show the notification
+      notificationWindow.once('ready-to-show', () => {
+        notification.show();
+        
+        // Clean up the notification window after a delay
+        setTimeout(() => {
+          if (notificationWindow && !notificationWindow.isDestroyed()) {
+            notificationWindow.destroy();
+          }
+        }, 5000);
+      });
+      
+      notificationWindow.loadURL('about:blank');
+      
+      console.log("Notification shown from center of screen");
     } else {
       console.log("Native notifications not supported");
     }

@@ -1,3 +1,4 @@
+
 import * as tf from '@tensorflow/tfjs';
 import * as faceLandmarksDetection from '@tensorflow-models/face-landmarks-detection';
 import * as faceDetection from '@tensorflow-models/face-detection';
@@ -21,7 +22,8 @@ class BlinkDetectionService {
   private frameCounter = 0;
   private lastBlinkTime = 0;
   private lowBlinkRateWarningThreshold = 5; // minimum blinks per minute
-  private checkInterval = 60000; // 1 minute
+  private checkInterval = 1200000; // 20 minutes (in milliseconds)
+  private lastNotificationTime = 0;
 
   private constructor() {
     // Initialize TensorFlow.js
@@ -229,16 +231,16 @@ class BlinkDetectionService {
   private startBlinkRateCheck(): void {
     if (!this.isRunning) return;
     
-    // Check blink rate every minute
+    // Check blink rate every 20 minutes
     setTimeout(() => {
       if (!this.isRunning) return;
       
       const currentTime = Date.now();
-      const elapsedMinutes = (currentTime - this.lastBlinkTime) / 60000;
       
-      // If no blinks detected in the last minute
-      if (elapsedMinutes >= 1) {
+      // Only notify if we haven't sent a notification recently
+      if (currentTime - this.lastNotificationTime >= this.checkInterval) {
         this.notifyLowBlinkRate();
+        this.lastNotificationTime = currentTime;
       }
       
       // Reset blink count for the next interval

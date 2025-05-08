@@ -12,6 +12,8 @@ class SystemTrayService {
   private isDesktopApp: boolean = false;
   private apiBaseUrl: string = 'http://localhost:5000/api';
   private trayIconState: 'default' | 'active' | 'rest' = 'default';
+  private lastNotificationTime: number = 0;
+  private notificationCooldown: number = 300000; // 5 minutes cooldown between notifications
 
   private constructor() {
     console.log("System tray service initialized");
@@ -91,6 +93,9 @@ class SystemTrayService {
   // Handle window switch for simulated environment
   private handleWindowSwitch(newWindow: string): void {
     console.log(`Active window changed to: ${newWindow}`);
+    
+    if (this.lastActiveWindow === newWindow) return;
+    
     this.lastActiveWindow = newWindow;
     this.windowSwitches++;
     
@@ -106,7 +111,12 @@ class SystemTrayService {
     
     // Check if we've exceeded the threshold - only notify on frequent switches
     if (this.windowSwitches >= this.switchThreshold) {
-      this.notifyFocusNeeded();
+      // Only send notification if cooldown period has passed
+      const now = Date.now();
+      if (now - this.lastNotificationTime > this.notificationCooldown) {
+        this.notifyFocusNeeded();
+        this.lastNotificationTime = now;
+      }
       this.windowSwitches = 0; // Reset after notification
     }
   }

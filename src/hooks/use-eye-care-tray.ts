@@ -28,13 +28,28 @@ export function useEyeCareTray() {
             updateTimerSettings({
               pomodoroDuration: 25, // Default value or get from preferences
               pomodoroBreakDuration: 5, // Default value or get from preferences
-              eyeCareWorkDuration: preferences.eyeCareSettings.workDuration,
-              eyeCareRestDuration: preferences.eyeCareSettings.restDuration
+              eyeCareWorkDuration: preferences.eyeCareSettings.workDuration || 1200, // 20 minutes default
+              eyeCareRestDuration: preferences.eyeCareSettings.restDuration || 20 // 20 seconds default
+            });
+          } else {
+            // Set default 20-minute work duration if no preferences found
+            updateTimerSettings({
+              pomodoroDuration: 25,
+              pomodoroBreakDuration: 5,
+              eyeCareWorkDuration: 1200, // 20 minutes
+              eyeCareRestDuration: 20 // 20 seconds
             });
           }
         })
         .catch(error => {
           console.error('Failed to load preferences:', error);
+          // Still set default values on error
+          updateTimerSettings({
+            pomodoroDuration: 25,
+            pomodoroBreakDuration: 5,
+            eyeCareWorkDuration: 1200, // 20 minutes 
+            eyeCareRestDuration: 20 // 20 seconds
+          });
         });
     }
   }, [user, updateTimerSettings]);
