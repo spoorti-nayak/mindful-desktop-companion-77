@@ -1,3 +1,4 @@
+
 // This service handles system tray functionality and active window monitoring
 
 class SystemTrayService {
@@ -57,6 +58,11 @@ class SystemTrayService {
       (window as any).electron.receive('eye-care-reminder', () => {
         this.notifyEyeCareBreak();
       });
+
+      // Force a test notification on initialization
+      setTimeout(() => {
+        this.notifyTest();
+      }, 3000);
     }
   }
 
@@ -111,11 +117,27 @@ class SystemTrayService {
     this.handleWindowSwitch(windowTitle); // Reuse existing logic
   }
 
+  private notifyTest(): void {
+    const message = "System tray notification test - if you see this, notifications are working!";
+    
+    // Show as native notification when in desktop mode
+    if (this.isDesktopApp && (window as any).electron) {
+      console.log("Sending test notification via IPC");
+      (window as any).electron.send('show-native-notification', {
+        title: "Notification Test", 
+        body: message
+      });
+    }
+    
+    this.listeners.forEach(listener => listener(message, true));
+  }
+
   private notifyFocusNeeded(): void {
     const message = "You seem distracted. Try focusing on one task at a time.";
     
     // Show as native notification when in desktop mode
     if (this.isDesktopApp && (window as any).electron) {
+      console.log("Sending focus notification via IPC");
       (window as any).electron.send('show-native-notification', {
         title: "Focus Reminder", 
         body: message
@@ -130,6 +152,7 @@ class SystemTrayService {
     
     // Show as native notification when in desktop mode
     if (this.isDesktopApp && (window as any).electron) {
+      console.log("Sending eye care notification via IPC");
       (window as any).electron.send('show-native-notification', {
         title: "Blink Reminder", 
         body: message
@@ -144,6 +167,7 @@ class SystemTrayService {
     
     // Show as native notification when in desktop mode
     if (this.isDesktopApp && (window as any).electron) {
+      console.log("Sending eye care break notification via IPC");
       (window as any).electron.send('show-native-notification', {
         title: "Eye Care Break", 
         body: message
@@ -207,6 +231,7 @@ class SystemTrayService {
   // In a real app, these methods would control the system tray via Electron
   public showTrayIcon(): void {
     if (this.isDesktopApp && (window as any).electron) {
+      console.log("Showing system tray icon via IPC");
       (window as any).electron.send('show-tray');
     }
     console.log("System tray icon shown");
@@ -214,6 +239,7 @@ class SystemTrayService {
 
   public hideTrayIcon(): void {
     if (this.isDesktopApp && (window as any).electron) {
+      console.log("Hiding system tray icon via IPC");
       (window as any).electron.send('hide-tray');
     }
     console.log("System tray icon hidden");
@@ -221,6 +247,7 @@ class SystemTrayService {
 
   public setTrayTooltip(tooltip: string): void {
     if (this.isDesktopApp && (window as any).electron) {
+      console.log(`Setting tray tooltip to: ${tooltip}`);
       (window as any).electron.send('set-tray-tooltip', tooltip);
     }
     console.log(`Set tray tooltip to: ${tooltip}`);
@@ -232,6 +259,7 @@ class SystemTrayService {
     
     this.trayIconState = state;
     if (this.isDesktopApp && (window as any).electron) {
+      console.log(`Setting tray icon state to: ${state}`);
       (window as any).electron.send('set-tray-icon', state);
     }
     console.log(`Set tray icon state to: ${state}`);

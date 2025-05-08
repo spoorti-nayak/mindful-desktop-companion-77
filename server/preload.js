@@ -4,28 +4,44 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electron', {
-  // Send messages from renderer to main
   send: (channel, data) => {
-    // List of allowed channels to send to main process
-    const validChannels = ['show-tray', 'hide-tray', 'set-tray-tooltip', 'set-tray-icon', 'show-native-notification'];
-    if (validChannels.includes(channel)) {
+    // List of allowed channels to send data to main process
+    const validSendChannels = [
+      'show-tray', 
+      'hide-tray', 
+      'set-tray-tooltip', 
+      'set-tray-icon',
+      'show-native-notification'
+    ];
+    
+    if (validSendChannels.includes(channel)) {
+      console.log(`Sending IPC message: ${channel}`, data);
       ipcRenderer.send(channel, data);
+    } else {
+      console.warn(`Attempted to send to unauthorized channel: ${channel}`);
     }
   },
-  
-  // Receive messages from main process
-  receive: (channel, callback) => {
-    // List of allowed channels to receive from main process
-    const validChannels = ['active-window-changed', 'blink-detected', 'eye-care-reminder'];
-    if (validChannels.includes(channel)) {
-      // Remove any existing listeners to prevent memory leaks
-      ipcRenderer.removeAllListeners(channel);
+  receive: (channel, func) => {
+    // List of allowed channels to receive data from main process
+    const validReceiveChannels = [
+      'active-window-changed', 
+      'blink-detected',
+      'eye-care-reminder'
+    ];
+    
+    if (validReceiveChannels.includes(channel)) {
+      // Deliberately strip event as it includes `sender` 
+      const subscription = (event, ...args) => func(...args);
+      ipcRenderer.on(channel, subscription);
       
-      // Add a new listener
-      ipcRenderer.on(channel, (event, ...args) => callback(...args));
+      // Return a function to remove the listener to avoid memory leaks
+      return () => {
+        ipcRenderer.removeListener(channel, subscription);
+      };
+    } else {
+      console.warn(`Attempted to receive from unauthorized channel: ${channel}`);
     }
   }
 });
 
-// Log that preload script has loaded
-console.log('Preload script loaded');
+console.log('Preload script loaded successfully');
