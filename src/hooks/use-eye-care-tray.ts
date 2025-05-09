@@ -76,8 +76,9 @@ export function useEyeCareTray() {
         
         // Send reminder when close to break time
         if (eyeCareWorkDuration - eyeCareTimeElapsed === 60) { // 1 minute before break
-          if (typeof window !== 'undefined' && window.electron) {
-            window.electron.send('show-native-notification', {
+          const electronApi = window.electron;
+          if (typeof window !== 'undefined' && electronApi) {
+            electronApi.send('show-native-notification', {
               title: "Eye Break Soon",
               body: "You will have an eye break in 1 minute. Prepare to look away from the screen."
             });
