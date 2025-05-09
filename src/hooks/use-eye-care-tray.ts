@@ -25,7 +25,6 @@ export function useEyeCareTray() {
         .then(preferences => {
           if (preferences?.eyeCareSettings) {
             // Update eye care settings from preferences using the correct method
-            // Include pomodoroDuration and pomodoroBreakDuration to satisfy the type
             updateTimerSettings({
               eyeCareWorkDuration: preferences.eyeCareSettings.workDuration || 1200, // 20 minutes default
               eyeCareRestDuration: preferences.eyeCareSettings.restDuration || 20, // 20 seconds default
@@ -76,9 +75,8 @@ export function useEyeCareTray() {
         
         // Send reminder when close to break time
         if (eyeCareWorkDuration - eyeCareTimeElapsed === 60) { // 1 minute before break
-          const electronApi = window.electron;
-          if (typeof window !== 'undefined' && electronApi) {
-            electronApi.send('show-native-notification', {
+          if (typeof window !== 'undefined' && 'electron' in window) {
+            window.electron?.send('show-native-notification', {
               title: "Eye Break Soon",
               body: "You will have an eye break in 1 minute. Prepare to look away from the screen."
             });
