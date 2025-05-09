@@ -17,6 +17,7 @@ interface AppUsageListProps {
 
 export function AppUsageList({ className }: AppUsageListProps) {
   const [appUsageData, setAppUsageData] = useState<AppUsageItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
   
   useEffect(() => {
@@ -32,13 +33,20 @@ export function AppUsageList({ className }: AppUsageListProps) {
       }));
       
       setAppUsageData(formattedAppUsage);
+      setIsLoading(false);
     };
     
     systemTray.addAppUsageListener(handleAppUsageUpdate);
     
+    // Set loading state to false after a delay if no data arrives
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
+    
     // Clean up listener
     return () => {
       systemTray.removeAppUsageListener(handleAppUsageUpdate);
+      clearTimeout(timeout);
     };
   }, [user]);
   
@@ -65,7 +73,16 @@ export function AppUsageList({ className }: AppUsageListProps) {
         <CardTitle>App Usage Today</CardTitle>
       </CardHeader>
       <CardContent>
-        {appUsageData.length > 0 ? (
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex animate-pulse items-center justify-between rounded-lg border p-3">
+                <div className="h-4 w-32 rounded bg-muted"></div>
+                <div className="h-4 w-10 rounded bg-muted"></div>
+              </div>
+            ))}
+          </div>
+        ) : appUsageData.length > 0 ? (
           <div className="space-y-3">
             {appUsageData.map((app) => (
               <div

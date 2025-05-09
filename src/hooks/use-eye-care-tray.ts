@@ -26,8 +26,6 @@ export function useEyeCareTray() {
           if (preferences?.eyeCareSettings) {
             // Update eye care settings from preferences using the correct method
             updateTimerSettings({
-              pomodoroDuration: 25, // Default value or get from preferences
-              pomodoroBreakDuration: 5, // Default value or get from preferences
               eyeCareWorkDuration: preferences.eyeCareSettings.workDuration || 1200, // 20 minutes default
               eyeCareRestDuration: preferences.eyeCareSettings.restDuration || 20 // 20 seconds default
             });
@@ -72,6 +70,16 @@ export function useEyeCareTray() {
         const secondsRemaining = (eyeCareWorkDuration - eyeCareTimeElapsed) % 60;
         systemTray.setTrayTooltip(`Next Break: ${minutesRemaining}:${String(secondsRemaining).padStart(2, '0')}`);
         systemTray.setTrayIcon('active');
+        
+        // Send reminder when close to break time
+        if (eyeCareWorkDuration - eyeCareTimeElapsed === 60) { // 1 minute before break
+          if (window.electron) {
+            window.electron.send('show-native-notification', {
+              title: "Eye Break Soon",
+              body: "You will have an eye break in 1 minute. Prepare to look away from the screen."
+            });
+          }
+        }
       }
     } else {
       systemTray.setTrayTooltip('Mindful Desktop Companion');

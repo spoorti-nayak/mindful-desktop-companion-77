@@ -1,3 +1,4 @@
+
 const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification, screen } = require('electron');
 const path = require('path');
 const activeWin = require('active-win'); // Updated from get-windows
@@ -14,6 +15,8 @@ let blinkDetector;
 let server;
 let isMonitoring = true;
 let isAppQuitting = false;
+let lastActiveWindow = null;
+let lastActiveWindowTime = Date.now();
 
 async function createWindow() {
   try {
@@ -168,12 +171,30 @@ function startActiveWindowMonitoring() {
     
     try {
       const activeWindow = await activeWin(); // Updated usage for active-win
-      if (activeWindow && mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('active-window-changed', {
-          title: activeWindow.title,
-          owner: activeWindow.owner?.name || 'Unknown',
-          path: activeWindow.owner?.path || 'Unknown'
-        });
+      const now = Date.now();
+      
+      if (activeWindow) {
+        // Calculate time spent in this window
+        let timeInWindow = 0;
+        if (lastActiveWindow && lastActiveWindow.owner?.path === activeWindow.owner?.path) {
+          timeInWindow = now - lastActiveWindowTime;
+        } else {
+          // Window changed, reset timer
+          lastActiveWindowTime = now;
+        }
+        
+        // Store current window info
+        lastActiveWindow = activeWindow;
+        
+        // Send to renderer process
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('active-window-changed', {
+            title: activeWindow.title,
+            owner: activeWindow.owner?.name || 'Unknown',
+            path: activeWindow.owner?.path || 'Unknown',
+            timeActive: timeInWindow
+          });
+        }
       }
     } catch (error) {
       console.error('Error getting active window:', error);
@@ -193,6 +214,17 @@ function initializeBlinkDetection() {
     if (isMonitoring) {
       blinkDetector.start();
     }
+    
+    // Set up automatic eye care reminders (20-20-20 rule)
+    setInterval(() => {
+      if (isMonitoring) {
+        showNotification("Eye Care Reminder", "Remember to blink and look 20ft away for 20 seconds.");
+        
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('eye-care-reminder');
+        }
+      }
+    }, 20 * 60 * 1000); // Every 20 minutes
   } catch (error) {
     console.error("Error initializing blink detection:", error);
   }
@@ -243,6 +275,7 @@ function showNotification(title, body) {
         skipTaskbar: true,
         transparent: true,
         focusable: false,
+        alwaysOnTop: true, // Make sure notification is on top
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true
@@ -254,7 +287,8 @@ function showNotification(title, body) {
         title: title,
         body: body,
         icon: path.join(__dirname, 'assets', 'icon.png'),
-        silent: false
+        silent: false,
+        urgency: 'critical' // Make notification more visible
       });
       
       // After the window is created, show the notification
@@ -270,6 +304,14 @@ function showNotification(title, body) {
       });
       
       notificationWindow.loadURL('about:blank');
+      
+      // Handle notification click
+      notification.on('click', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      });
       
       console.log("Notification shown from center of screen");
     } else {
