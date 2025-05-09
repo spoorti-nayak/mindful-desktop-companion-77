@@ -9,9 +9,19 @@ import { AppUsageList } from "@/components/dashboard/AppUsageList";
 import { SettingsPanel } from "@/components/settings/SettingsPanel";
 import { Clock, Eye, Activity, Zap, Settings, BarChart3 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const { user } = useAuth();
+  
+  // New user data would be empty, no fake data anymore
+  const userData = {
+    focusScore: null,
+    screenTime: null,
+    eyeBreaks: 0,
+    distractions: 0
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -42,40 +52,32 @@ const Index = () => {
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               <StatCard
                 title="Focus Score"
-                value="85%"
+                value={userData.focusScore}
                 icon={<Activity />}
                 description="How focused you've been today"
-                trend="up"
-                trendValue="5% from yesterday"
               />
               <StatCard
                 title="Screen Time"
-                value="4h 15m"
+                value={userData.screenTime}
                 icon={<Clock />}
                 description="Total screen time today"
-                trend="down"
-                trendValue="45m from yesterday"
               />
               <StatCard
                 title="Eye Breaks"
-                value="12"
+                value={userData.eyeBreaks}
                 icon={<Eye />}
                 description="Eye care breaks taken today"
-                trend="up"
-                trendValue="3 more than yesterday"
               />
               <StatCard
                 title="Distractions"
-                value="8"
+                value={userData.distractions}
                 icon={<Zap />}
                 description="Times you got distracted"
-                trend="down"
-                trendValue="2 less than yesterday"
               />
             </div>
 
             <div className="mt-6 grid gap-6 md:grid-cols-2">
-              <ActivityChart />
+              <ActivityChart emptyState={true} />
               <AppUsageList />
             </div>
           </TabsContent>

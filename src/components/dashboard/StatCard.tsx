@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 interface StatCardProps {
   title: string;
-  value: string | number;
+  value: string | number | null;
   icon: ReactNode;
   description?: string;
   className?: string;
@@ -29,7 +29,9 @@ export function StatCard({
         <div className="h-5 w-5 text-muted-foreground">{icon}</div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+        <div className="text-2xl font-bold">
+          {value ?? "No data yet"}
+        </div>
         {description && (
           <p className="text-xs text-muted-foreground">{description}</p>
         )}

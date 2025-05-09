@@ -2,8 +2,8 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-// Sample data - in a real app, this would come from your MongoDB backend
-const data = [
+// Sample data - this will only be used when we have actual data to show
+const sampleData = [
   { time: '8 AM', productivity: 95, screenTime: 30 },
   { time: '9 AM', productivity: 80, screenTime: 45 },
   { time: '10 AM', productivity: 90, screenTime: 50 },
@@ -19,9 +19,10 @@ const data = [
 interface ActivityChartProps {
   title?: string;
   className?: string;
+  emptyState?: boolean;
 }
 
-export function ActivityChart({ title = "Daily Activity", className }: ActivityChartProps) {
+export function ActivityChart({ title = "Daily Activity", className, emptyState = true }: ActivityChartProps) {
   return (
     <Card className={className}>
       <CardHeader>
@@ -29,41 +30,50 @@ export function ActivityChart({ title = "Daily Activity", className }: ActivityC
       </CardHeader>
       <CardContent>
         <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={data}
-              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-            >
-              <defs>
-                <linearGradient id="colorProductivity" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.1} />
-                </linearGradient>
-                <linearGradient id="colorScreenTime" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--secondary))" stopOpacity={0.8} />
-                  <stop offset="95%" stopColor="hsl(var(--secondary))" stopOpacity={0.1} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-              <XAxis dataKey="time" />
-              <YAxis />
-              <Tooltip />
-              <Area
-                type="monotone"
-                dataKey="productivity"
-                stroke="hsl(var(--primary))"
-                fillOpacity={1}
-                fill="url(#colorProductivity)"
-              />
-              <Area
-                type="monotone"
-                dataKey="screenTime"
-                stroke="hsl(var(--secondary))"
-                fillOpacity={1}
-                fill="url(#colorScreenTime)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {emptyState ? (
+            <div className="flex h-full flex-col items-center justify-center">
+              <p className="text-muted-foreground">No activity data yet</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Data will appear as you use the application
+              </p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
+                data={sampleData}
+                margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="colorProductivity" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.1} />
+                  </linearGradient>
+                  <linearGradient id="colorScreenTime" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--secondary))" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="hsl(var(--secondary))" stopOpacity={0.1} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                <XAxis dataKey="time" />
+                <YAxis />
+                <Tooltip />
+                <Area
+                  type="monotone"
+                  dataKey="productivity"
+                  stroke="hsl(var(--primary))"
+                  fillOpacity={1}
+                  fill="url(#colorProductivity)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="screenTime"
+                  stroke="hsl(var(--secondary))"
+                  fillOpacity={1}
+                  fill="url(#colorScreenTime)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
         <div className="mt-4 flex items-center justify-center space-x-8">
           <div className="flex items-center">
