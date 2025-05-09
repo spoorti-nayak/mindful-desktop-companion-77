@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -56,7 +57,7 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
       });
       
       // Send a notification via system tray as well
-      if (typeof window !== 'undefined' && window.electron) {
+      if (typeof window !== 'undefined' && window.electron !== undefined) {
         window.electron.send('show-native-notification', {
           title: "Eye Care Break",
           body: "Time to rest your eyes! Look 20ft away for 20 seconds."
@@ -72,7 +73,7 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
       });
       
       // Send a notification via system tray as well
-      if (typeof window !== 'undefined' && window.electron) {
+      if (typeof window !== 'undefined' && window.electron !== undefined) {
         window.electron.send('show-native-notification', {
           title: "Eye Care Break Complete",
           body: "You can resume your work now. Next break in 20 minutes."
@@ -100,7 +101,7 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
       });
       
       // Send a notification via system tray as well
-      if (typeof window !== 'undefined' && window.electron) {
+      if (typeof window !== 'undefined' && window.electron !== undefined) {
         window.electron.send('show-native-notification', {
           title: "Blink Reminders Activated",
           body: "You'll receive reminders to blink every 20 minutes."
