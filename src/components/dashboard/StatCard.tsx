@@ -11,6 +11,7 @@ interface StatCardProps {
   className?: string;
   trend?: "up" | "down" | "neutral";
   trendValue?: string;
+  loading?: boolean;
 }
 
 export function StatCard({
@@ -21,6 +22,7 @@ export function StatCard({
   className,
   trend,
   trendValue,
+  loading = false,
 }: StatCardProps) {
   return (
     <Card className={cn("overflow-hidden", className)}>
@@ -30,7 +32,11 @@ export function StatCard({
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">
-          {value ?? "No data yet"}
+          {loading ? (
+            <div className="h-8 w-20 animate-pulse rounded-md bg-muted"></div>
+          ) : (
+            value ?? "No data yet"
+          )}
         </div>
         {description && (
           <p className="text-xs text-muted-foreground">{description}</p>

@@ -3,10 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import SystemTrayService from "@/services/SystemTrayService";
 
 interface AppUsageItem {
   name: string;
-  time: string;
+  time: number;
   type: "productive" | "distraction" | "communication";
 }
 
@@ -19,10 +20,44 @@ export function AppUsageList({ className }: AppUsageListProps) {
   const { user } = useAuth();
   
   useEffect(() => {
-    // In a real implementation, this would fetch from a backend API
-    // For now, we're just initializing with empty data for new users
-    setAppUsageData([]);
+    const systemTray = SystemTrayService.getInstance();
+    
+    // Subscribe to app usage updates
+    const handleAppUsageUpdate = (appUsage: Array<{name: string, time: number, type: string}>) => {
+      // Convert to formatted app usage items
+      const formattedAppUsage: AppUsageItem[] = appUsage.map(app => ({
+        name: app.name,
+        time: app.time,
+        type: app.type as "productive" | "distraction" | "communication"
+      }));
+      
+      setAppUsageData(formattedAppUsage);
+    };
+    
+    systemTray.addAppUsageListener(handleAppUsageUpdate);
+    
+    // Clean up listener
+    return () => {
+      systemTray.removeAppUsageListener(handleAppUsageUpdate);
+    };
   }, [user]);
+  
+  // Format milliseconds to time string (e.g. "2h 15m" or "45m" or "30s")
+  const formatTime = (ms: number): string => {
+    if (ms < 1000) return "just now";
+    
+    const seconds = Math.floor((ms / 1000) % 60);
+    const minutes = Math.floor((ms / (1000 * 60)) % 60);
+    const hours = Math.floor(ms / (1000 * 60 * 60));
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m`;
+    } else {
+      return `${seconds}s`;
+    }
+  };
 
   return (
     <Card className={className}>
@@ -48,7 +83,7 @@ export function AppUsageList({ className }: AppUsageListProps) {
                   ></div>
                   <span>{app.name}</span>
                 </div>
-                <div className="text-sm font-medium">{app.time}</div>
+                <div className="text-sm font-medium">{formatTime(app.time)}</div>
               </div>
             ))}
           </div>

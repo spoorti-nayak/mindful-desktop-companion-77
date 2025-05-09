@@ -5,15 +5,32 @@ class SystemTrayService {
   private static instance: SystemTrayService;
   private lastActiveWindow: string | null = null;
   private windowSwitches: number = 0;
-  private switchThreshold: number = 5; // Number of switches before showing refocus notification
-  private switchTimeframe: number = 60000; // 1 minute timeframe
+  private switchThreshold: number = 3; // Reduced from 5 to 3 for more sensitive tab shift detection
+  private switchTimeframe: number = 30000; // Reduced from 60000 (1 min) to 30000 (30 sec) for quicker detection
   private switchTimer: NodeJS.Timeout | null = null;
   private listeners: Array<(message: string, isFocusAlert: boolean) => void> = [];
   private isDesktopApp: boolean = false;
   private apiBaseUrl: string = 'http://localhost:5000/api';
   private trayIconState: 'default' | 'active' | 'rest' = 'default';
   private lastNotificationTime: number = 0;
-  private notificationCooldown: number = 300000; // 5 minutes cooldown between notifications
+  private notificationCooldown: number = 180000; // Reduced from 5 minutes to 3 minutes
+
+  // Screen time tracking variables
+  private screenTimeStart: number = 0;
+  private screenTimeToday: number = 0;
+  private lastScreenTimeUpdate: number = 0;
+  private idleThreshold: number = 60000; // 1 minute of inactivity is considered idle
+  private lastActivityTime: number = 0;
+  private screenTimeListeners: Array<(screenTime: number) => void> = [];
+  private focusScoreListeners: Array<(score: number) => void> = [];
+  private appUsageListeners: Array<(appUsage: Array<{name: string, time: number, type: string}>) => void> = [];
+  private appUsageData: Map<string, {time: number, type: string}> = new Map();
+  
+  private userIdleTime: number = 0;
+  private idleCheckInterval: NodeJS.Timeout | null = null;
+  private focusScore: number = 100; // Start with perfect score
+  private distractionCount: number = 0;
+  private focusScoreUpdateListeners: Array<(score: number, distractions: number) => void> = [];
 
   private constructor() {
     console.log("System tray service initialized");
@@ -21,12 +38,119 @@ class SystemTrayService {
     // Check if running in Electron or similar desktop environment
     this.isDesktopApp = this.checkIsDesktopApp();
     
+    // Initialize screen time tracking
+    this.initializeScreenTimeTracking();
+    
     if (this.isDesktopApp) {
       this.initializeDesktopMonitoring();
     } else {
       // Fall back to simulation for web preview
       this.startWindowMonitoring();
     }
+  }
+
+  // Initialize screen time tracking
+  private initializeScreenTimeTracking(): void {
+    // Start tracking screen time
+    this.screenTimeStart = Date.now();
+    this.lastActivityTime = Date.now();
+    this.lastScreenTimeUpdate = Date.now();
+    
+    // Update screen time every minute
+    setInterval(() => {
+      this.updateScreenTime();
+    }, 60000); // Update every minute
+    
+    // Check for user idle every 10 seconds
+    this.idleCheckInterval = setInterval(() => {
+      const now = Date.now();
+      const timeSinceLastActivity = now - this.lastActivityTime;
+      
+      if (timeSinceLastActivity > this.idleThreshold) {
+        this.userIdleTime = timeSinceLastActivity;
+      } else {
+        this.userIdleTime = 0;
+      }
+    }, 10000);
+    
+    // Reset daily stats at midnight
+    this.setupDailyReset();
+  }
+  
+  // Setup daily reset at midnight
+  private setupDailyReset(): void {
+    const now = new Date();
+    const midnight = new Date();
+    midnight.setHours(24, 0, 0, 0);
+    
+    const timeToMidnight = midnight.getTime() - now.getTime();
+    
+    setTimeout(() => {
+      console.log("Resetting daily stats");
+      this.resetDailyStats();
+      
+      // Setup next day's reset
+      this.setupDailyReset();
+    }, timeToMidnight);
+  }
+  
+  // Reset daily statistics
+  private resetDailyStats(): void {
+    this.screenTimeToday = 0;
+    this.distractionCount = 0;
+    this.focusScore = 100;
+    this.appUsageData.clear();
+    
+    // Notify listeners of reset
+    this.notifyScreenTimeListeners();
+    this.notifyFocusScoreListeners();
+    this.notifyAppUsageListeners();
+  }
+  
+  // Update screen time calculation
+  private updateScreenTime(): void {
+    const now = Date.now();
+    
+    // Don't count time if user is idle
+    if (this.userIdleTime < this.idleThreshold) {
+      const timeElapsed = now - this.lastScreenTimeUpdate;
+      this.screenTimeToday += timeElapsed;
+      
+      // Notify listeners
+      this.notifyScreenTimeListeners();
+    }
+    
+    this.lastScreenTimeUpdate = now;
+  }
+  
+  // Format screen time as hours:minutes
+  public formatScreenTime(milliseconds: number): string {
+    const totalMinutes = Math.floor(milliseconds / 60000);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    
+    return `${hours}h ${minutes}m`;
+  }
+  
+  // Get current screen time
+  public getScreenTime(): number {
+    this.updateScreenTime(); // Force update to get current value
+    return this.screenTimeToday;
+  }
+  
+  // Get formatted screen time
+  public getFormattedScreenTime(): string {
+    return this.formatScreenTime(this.getScreenTime());
+  }
+  
+  // Get current focus score
+  public getFocusScore(): number {
+    return this.focusScore;
+  }
+  
+  // Get current distraction count
+  public getDistractionCount(): number {
+    return this.distractionCount;
   }
 
   // Detect if we're running in a desktop environment
@@ -49,6 +173,12 @@ class SystemTrayService {
       // Example: Listen for active window changes from main process
       (window as any).electron.receive('active-window-changed', (windowInfo: any) => {
         this.handleRealWindowSwitch(windowInfo.title);
+        
+        // Track app usage
+        this.trackAppUsage(windowInfo.title, windowInfo.owner || "Unknown");
+        
+        // Update last activity time
+        this.lastActivityTime = Date.now();
       });
       
       // Example: Listen for blink detection events
@@ -68,6 +198,167 @@ class SystemTrayService {
     }
   }
 
+  // Track app usage for a specific application
+  private trackAppUsage(appTitle: string, appOwner: string): void {
+    const appName = appOwner !== "Unknown" ? appOwner : appTitle;
+    const now = Date.now();
+    
+    // Determine app type (productive, distraction, communication)
+    let appType = this.determineAppType(appName);
+    
+    // Get or create app usage data
+    if (!this.appUsageData.has(appName)) {
+      this.appUsageData.set(appName, { time: 0, type: appType });
+    }
+    
+    // Update app usage time (only if not idle)
+    if (this.userIdleTime < this.idleThreshold && this.lastActiveWindow === appName) {
+      const timeElapsed = now - this.lastActivityTime;
+      const appData = this.appUsageData.get(appName);
+      if (appData) {
+        appData.time += timeElapsed;
+        this.appUsageData.set(appName, appData);
+      }
+    }
+    
+    // Notify listeners
+    this.notifyAppUsageListeners();
+  }
+  
+  // Determine app type based on name
+  private determineAppType(appName: string): "productive" | "distraction" | "communication" {
+    const appNameLower = appName.toLowerCase();
+    
+    // Productive apps
+    if (
+      appNameLower.includes("code") || 
+      appNameLower.includes("word") || 
+      appNameLower.includes("excel") || 
+      appNameLower.includes("powerpoint") || 
+      appNameLower.includes("outlook") ||
+      appNameLower.includes("terminal") ||
+      appNameLower.includes("studio") ||
+      appNameLower.includes("notepad") ||
+      appNameLower.includes("editor")
+    ) {
+      return "productive";
+    }
+    
+    // Communication apps
+    if (
+      appNameLower.includes("teams") || 
+      appNameLower.includes("slack") || 
+      appNameLower.includes("zoom") || 
+      appNameLower.includes("meet") || 
+      appNameLower.includes("mail") ||
+      appNameLower.includes("outlook") ||
+      appNameLower.includes("gmail")
+    ) {
+      return "communication";
+    }
+    
+    // Distraction apps
+    if (
+      appNameLower.includes("youtube") || 
+      appNameLower.includes("netflix") || 
+      appNameLower.includes("facebook") || 
+      appNameLower.includes("instagram") || 
+      appNameLower.includes("twitter") ||
+      appNameLower.includes("game") ||
+      appNameLower.includes("reddit") ||
+      appNameLower.includes("tiktok")
+    ) {
+      return "distraction";
+    }
+    
+    // Default to productive if unknown
+    return "productive";
+  }
+  
+  // Add a screen time listener
+  public addScreenTimeListener(callback: (screenTime: number) => void): void {
+    this.screenTimeListeners.push(callback);
+    
+    // Initial callback with current value
+    callback(this.screenTimeToday);
+  }
+  
+  // Remove a screen time listener
+  public removeScreenTimeListener(callback: (screenTime: number) => void): void {
+    const index = this.screenTimeListeners.indexOf(callback);
+    if (index > -1) {
+      this.screenTimeListeners.splice(index, 1);
+    }
+  }
+  
+  // Notify all screen time listeners
+  private notifyScreenTimeListeners(): void {
+    this.screenTimeListeners.forEach(listener => {
+      listener(this.screenTimeToday);
+    });
+  }
+  
+  // Add a focus score update listener
+  public addFocusScoreListener(callback: (score: number, distractions: number) => void): void {
+    this.focusScoreUpdateListeners.push(callback);
+    
+    // Initial callback with current values
+    callback(this.focusScore, this.distractionCount);
+  }
+  
+  // Remove a focus score update listener
+  public removeFocusScoreListener(callback: (score: number, distractions: number) => void): void {
+    const index = this.focusScoreUpdateListeners.indexOf(callback);
+    if (index > -1) {
+      this.focusScoreUpdateListeners.splice(index, 1);
+    }
+  }
+  
+  // Notify all focus score listeners
+  private notifyFocusScoreListeners(): void {
+    this.focusScoreUpdateListeners.forEach(listener => {
+      listener(this.focusScore, this.distractionCount);
+    });
+  }
+  
+  // Add an app usage listener
+  public addAppUsageListener(callback: (appUsage: Array<{name: string, time: number, type: string}>) => void): void {
+    this.appUsageListeners.push(callback);
+    
+    // Initial callback with current values
+    const appUsageArray = Array.from(this.appUsageData.entries()).map(([name, data]) => ({
+      name,
+      time: data.time,
+      type: data.type
+    }));
+    
+    callback(appUsageArray);
+  }
+  
+  // Remove an app usage listener
+  public removeAppUsageListener(callback: (appUsage: Array<{name: string, time: number, type: string}>) => void): void {
+    const index = this.appUsageListeners.indexOf(callback);
+    if (index > -1) {
+      this.appUsageListeners.splice(index, 1);
+    }
+  }
+  
+  // Notify all app usage listeners
+  private notifyAppUsageListeners(): void {
+    const appUsageArray = Array.from(this.appUsageData.entries())
+      .map(([name, data]) => ({
+        name,
+        time: data.time,
+        type: data.type as "productive" | "distraction" | "communication"
+      }))
+      .sort((a, b) => b.time - a.time) // Sort by time descending
+      .slice(0, 10); // Limit to top 10
+    
+    this.appUsageListeners.forEach(listener => {
+      listener(appUsageArray);
+    });
+  }
+
   public static getInstance(): SystemTrayService {
     if (!SystemTrayService.instance) {
       SystemTrayService.instance = new SystemTrayService();
@@ -78,7 +369,7 @@ class SystemTrayService {
   // Simulated window monitoring for web preview
   private startWindowMonitoring(): void {
     // For demo purposes, we'll simulate window switches with random "apps"
-    const mockApps = ["YouTube", "Instagram", "Twitter", "Gmail", "Notepad", "VS Code", "Spotify"];
+    const mockApps = ["YouTube", "Instagram", "VS Code", "Spotify", "Gmail", "Word", "Slack"];
     
     // Every 5-15 seconds, simulate a window switch
     setInterval(() => {
@@ -86,6 +377,12 @@ class SystemTrayService {
       
       if (this.lastActiveWindow !== newWindow) {
         this.handleWindowSwitch(newWindow);
+        
+        // Track app usage
+        this.trackAppUsage(newWindow, newWindow);
+        
+        // Update last activity time
+        this.lastActivityTime = Date.now();
       }
     }, Math.random() * 10000 + 5000);
   }
@@ -109,13 +406,20 @@ class SystemTrayService {
       this.windowSwitches = 0;
     }, this.switchTimeframe);
     
-    // Check if we've exceeded the threshold - only notify on frequent switches
+    // Check if we've exceeded the threshold - now triggers at 3 switches instead of 5
     if (this.windowSwitches >= this.switchThreshold) {
       // Only send notification if cooldown period has passed
       const now = Date.now();
       if (now - this.lastNotificationTime > this.notificationCooldown) {
         this.notifyFocusNeeded();
         this.lastNotificationTime = now;
+        
+        // Update focus score
+        this.distractionCount++;
+        this.focusScore = Math.max(0, 100 - (this.distractionCount * 5)); // Each distraction reduces score by 5%
+        
+        // Notify listeners of focus score update
+        this.notifyFocusScoreListeners();
       }
       this.windowSwitches = 0; // Reset after notification
     }
