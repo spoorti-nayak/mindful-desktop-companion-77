@@ -56,8 +56,8 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
       });
       
       // Send a notification via system tray as well
-      if (typeof window !== 'undefined' && 'electron' in window) {
-        window.electron?.send('show-native-notification', {
+      if (typeof window !== 'undefined' && window.electron) {
+        window.electron.send('show-native-notification', {
           title: "Eye Care Break",
           body: "Time to rest your eyes! Look 20ft away for 20 seconds."
         });
@@ -72,8 +72,8 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
       });
       
       // Send a notification via system tray as well
-      if (typeof window !== 'undefined' && 'electron' in window) {
-        window.electron?.send('show-native-notification', {
+      if (typeof window !== 'undefined' && window.electron) {
+        window.electron.send('show-native-notification', {
           title: "Eye Care Break Complete",
           body: "You can resume your work now. Next break in 20 minutes."
         });
@@ -100,8 +100,8 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
       });
       
       // Send a notification via system tray as well
-      if (typeof window !== 'undefined' && 'electron' in window) {
-        window.electron?.send('show-native-notification', {
+      if (typeof window !== 'undefined' && window.electron) {
+        window.electron.send('show-native-notification', {
           title: "Blink Reminders Activated",
           body: "You'll receive reminders to blink every 20 minutes."
         });
