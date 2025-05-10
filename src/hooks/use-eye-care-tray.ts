@@ -24,6 +24,7 @@ export function useEyeCareTray() {
       systemTray.loadPreferences(user.id)
         .then(preferences => {
           if (preferences?.eyeCareSettings) {
+            console.log("Loaded eye care settings from preferences:", preferences.eyeCareSettings);
             // Update eye care settings from preferences using the correct method
             updateTimerSettings({
               eyeCareWorkDuration: preferences.eyeCareSettings.workDuration || 1200, // 20 minutes default
@@ -75,7 +76,8 @@ export function useEyeCareTray() {
         
         // Send reminder when close to break time
         if (eyeCareWorkDuration - eyeCareTimeElapsed === 60) { // 1 minute before break
-          if (typeof window !== 'undefined' && window.electron !== undefined) {
+          if (typeof window !== 'undefined' && window.electron) {
+            console.log("Sending 1-minute warning notification");
             window.electron.send('show-native-notification', {
               title: "Eye Break Soon",
               body: "You will have an eye break in 1 minute. Prepare to look away from the screen."
@@ -88,4 +90,19 @@ export function useEyeCareTray() {
       systemTray.setTrayIcon('default');
     }
   }, [isEyeCareActive, isEyeCareResting, eyeCareTimeElapsed, eyeCareWorkDuration, eyeCareRestDuration]);
+
+  // Add a function to manually trigger a notification for testing
+  const triggerTestNotification = () => {
+    const systemTray = SystemTrayService.getInstance();
+    systemTray.setTrayTooltip('Test notification triggered');
+    
+    if (typeof window !== 'undefined' && window.electron) {
+      window.electron.send('show-native-notification', {
+        title: "Test Notification",
+        body: "This is a test notification triggered manually."
+      });
+    }
+  };
+  
+  return { triggerTestNotification };
 }

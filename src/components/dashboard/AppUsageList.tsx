@@ -40,7 +40,10 @@ export function AppUsageList({ className }: AppUsageListProps) {
     
     // Set loading state to false after a delay if no data arrives
     const timeout = setTimeout(() => {
-      setIsLoading(false);
+      if (isLoading && appUsageData.length === 0) {
+        console.log("No app usage data received, showing empty state");
+        setIsLoading(false);
+      }
     }, 2000);
     
     // Clean up listener
@@ -106,9 +109,12 @@ export function AppUsageList({ className }: AppUsageListProps) {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <p className="text-muted-foreground">No app usage data yet</p>
+            <p className="text-muted-foreground">No app usage data available</p>
             <p className="text-xs text-muted-foreground mt-2">
-              Data will appear as you use applications
+              Data will appear when you switch between applications
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              (Note: This requires desktop app mode to track real applications)
             </p>
           </div>
         )}

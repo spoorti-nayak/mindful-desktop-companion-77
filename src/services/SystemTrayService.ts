@@ -1,25 +1,24 @@
-
 // This service handles system tray functionality and active window monitoring
 
 class SystemTrayService {
   private static instance: SystemTrayService;
   private lastActiveWindow: string | null = null;
   private windowSwitches: number = 0;
-  private switchThreshold: number = 3; // Reduced from 5 to 3 for more sensitive tab shift detection
-  private switchTimeframe: number = 30000; // Reduced from 60000 (1 min) to 30000 (30 sec) for quicker detection
+  private switchThreshold: number = 3;
+  private switchTimeframe: number = 30000;
   private switchTimer: NodeJS.Timeout | null = null;
   private listeners: Array<(message: string, isFocusAlert: boolean) => void> = [];
   private isDesktopApp: boolean = false;
   private apiBaseUrl: string = 'http://localhost:5000/api';
   private trayIconState: 'default' | 'active' | 'rest' = 'default';
   private lastNotificationTime: number = 0;
-  private notificationCooldown: number = 180000; // Reduced from 5 minutes to 3 minutes
+  private notificationCooldown: number = 180000;
 
   // Screen time tracking variables
   private screenTimeStart: number = 0;
   private screenTimeToday: number = 0;
   private lastScreenTimeUpdate: number = 0;
-  private idleThreshold: number = 60000; // 1 minute of inactivity is considered idle
+  private idleThreshold: number = 60000;
   private lastActivityTime: number = 0;
   private screenTimeListeners: Array<(screenTime: number) => void> = [];
   private focusScoreListeners: Array<(score: number) => void> = [];
@@ -28,7 +27,7 @@ class SystemTrayService {
   
   private userIdleTime: number = 0;
   private idleCheckInterval: NodeJS.Timeout | null = null;
-  private focusScore: number = 100; // Start with perfect score
+  private focusScore: number = 100;
   private distractionCount: number = 0;
   private focusScoreUpdateListeners: Array<(score: number, distractions: number) => void> = [];
 
@@ -43,10 +42,8 @@ class SystemTrayService {
     
     if (this.isDesktopApp) {
       this.initializeDesktopMonitoring();
-    } else {
-      // Fall back to simulation for web preview
-      this.startWindowMonitoring();
     }
+    // Removed the simulation code that was creating fake data
   }
 
   // Initialize screen time tracking
@@ -73,7 +70,7 @@ class SystemTrayService {
       }
     }, 10000);
     
-    // Reset daily stats at midnight
+    // Setup daily reset at midnight
     this.setupDailyReset();
   }
   
@@ -156,7 +153,11 @@ class SystemTrayService {
   // Detect if we're running in a desktop environment
   private checkIsDesktopApp(): boolean {
     // Check for Electron or similar desktop app environment
-    return !!(window as any).electron || !!(window as any).process?.versions?.electron;
+    const hasElectron = typeof window !== 'undefined' && 
+                        window.electron !== undefined && 
+                        typeof window.electron.send === 'function';
+    console.log("Is electron environment:", hasElectron);
+    return hasElectron;
   }
 
   // Allow external components to check if we're in desktop mode
@@ -168,10 +169,10 @@ class SystemTrayService {
   private initializeDesktopMonitoring(): void {
     console.log("Initializing real desktop monitoring");
     
-    // This would connect to native APIs via Electron IPC in a real app
-    if (this.isDesktopApp && (window as any).electron) {
-      // Example: Listen for active window changes from main process
-      (window as any).electron.receive('active-window-changed', (windowInfo: any) => {
+    // This connects to native APIs via Electron IPC in a real app
+    if (this.isDesktopApp && window.electron) {
+      // Listen for active window changes from main process
+      const unsubscribeActiveWindow = window.electron.receive('active-window-changed', (windowInfo: any) => {
         this.handleRealWindowSwitch(windowInfo.title);
         
         // Track app usage
@@ -181,13 +182,13 @@ class SystemTrayService {
         this.lastActivityTime = Date.now();
       });
       
-      // Example: Listen for blink detection events
-      (window as any).electron.receive('blink-detected', () => {
+      // Listen for blink detection events
+      const unsubscribeBlink = window.electron.receive('blink-detected', () => {
         this.notifyEyeCare();
       });
       
       // Set up eye care notification handler
-      (window as any).electron.receive('eye-care-reminder', () => {
+      const unsubscribeEyeCare = window.electron.receive('eye-care-reminder', () => {
         this.notifyEyeCareBreak();
       });
 
@@ -366,28 +367,13 @@ class SystemTrayService {
     return SystemTrayService.instance;
   }
 
-  // Simulated window monitoring for web preview
-  private startWindowMonitoring(): void {
-    // For demo purposes, we'll simulate window switches with random "apps"
-    const mockApps = ["YouTube", "Instagram", "VS Code", "Spotify", "Gmail", "Word", "Slack"];
-    
-    // Every 5-15 seconds, simulate a window switch
-    setInterval(() => {
-      const newWindow = mockApps[Math.floor(Math.random() * mockApps.length)];
-      
-      if (this.lastActiveWindow !== newWindow) {
-        this.handleWindowSwitch(newWindow);
-        
-        // Track app usage
-        this.trackAppUsage(newWindow, newWindow);
-        
-        // Update last activity time
-        this.lastActivityTime = Date.now();
-      }
-    }, Math.random() * 10000 + 5000);
+  // Handle real window switch data from desktop APIs
+  private handleRealWindowSwitch(windowTitle: string): void {
+    console.log(`Real active window changed to: ${windowTitle}`);
+    this.handleWindowSwitch(windowTitle);
   }
 
-  // Handle window switch for simulated environment
+  // Handle window switch 
   private handleWindowSwitch(newWindow: string): void {
     console.log(`Active window changed to: ${newWindow}`);
     
@@ -406,7 +392,7 @@ class SystemTrayService {
       this.windowSwitches = 0;
     }, this.switchTimeframe);
     
-    // Check if we've exceeded the threshold - now triggers at 3 switches instead of 5
+    // Check if we've exceeded the threshold
     if (this.windowSwitches >= this.switchThreshold) {
       // Only send notification if cooldown period has passed
       const now = Date.now();
@@ -416,31 +402,31 @@ class SystemTrayService {
         
         // Update focus score
         this.distractionCount++;
-        this.focusScore = Math.max(0, 100 - (this.distractionCount * 5)); // Each distraction reduces score by 5%
+        this.focusScore = Math.max(0, 100 - (this.distractionCount * 5));
         
         // Notify listeners of focus score update
         this.notifyFocusScoreListeners();
       }
-      this.windowSwitches = 0; // Reset after notification
+      this.windowSwitches = 0;
     }
   }
 
-  // Handle real window switch data from desktop APIs
-  private handleRealWindowSwitch(windowTitle: string): void {
-    console.log(`Real active window changed to: ${windowTitle}`);
-    this.handleWindowSwitch(windowTitle); // Reuse existing logic
-  }
-
+  // Test notification method - updated to ensure it works
   private notifyTest(): void {
     const message = "System tray notification test - if you see this, notifications are working!";
     
     // Show as native notification when in desktop mode
-    if (this.isDesktopApp && (window as any).electron) {
+    if (this.isDesktopApp && window.electron) {
       console.log("Sending test notification via IPC");
-      (window as any).electron.send('show-native-notification', {
-        title: "Notification Test", 
-        body: message
-      });
+      try {
+        window.electron.send('show-native-notification', {
+          title: "Notification Test", 
+          body: message
+        });
+        console.log("Test notification sent successfully");
+      } catch (error) {
+        console.error("Error sending test notification:", error);
+      }
     }
     
     this.listeners.forEach(listener => listener(message, true));
@@ -449,10 +435,9 @@ class SystemTrayService {
   private notifyFocusNeeded(): void {
     const message = "You seem distracted. Try focusing on one task at a time.";
     
-    // Show as native notification when in desktop mode
-    if (this.isDesktopApp && (window as any).electron) {
+    if (this.isDesktopApp && window.electron) {
       console.log("Sending focus notification via IPC");
-      (window as any).electron.send('show-native-notification', {
+      window.electron.send('show-native-notification', {
         title: "Focus Reminder", 
         body: message
       });
@@ -464,10 +449,9 @@ class SystemTrayService {
   private notifyEyeCare(): void {
     const message = "Remember to blink regularly to reduce eye strain.";
     
-    // Show as native notification when in desktop mode
-    if (this.isDesktopApp && (window as any).electron) {
+    if (this.isDesktopApp && window.electron) {
       console.log("Sending eye care notification via IPC");
-      (window as any).electron.send('show-native-notification', {
+      window.electron.send('show-native-notification', {
         title: "Blink Reminder", 
         body: message
       });
@@ -479,10 +463,9 @@ class SystemTrayService {
   private notifyEyeCareBreak(): void {
     const message = "Time to rest your eyes! Look 20ft away for 20 seconds.";
     
-    // Show as native notification when in desktop mode
-    if (this.isDesktopApp && (window as any).electron) {
+    if (this.isDesktopApp && window.electron) {
       console.log("Sending eye care break notification via IPC");
-      (window as any).electron.send('show-native-notification', {
+      window.electron.send('show-native-notification', {
         title: "Eye Care Break", 
         body: message
       });
@@ -542,41 +525,75 @@ class SystemTrayService {
     }
   }
 
-  // In a real app, these methods would control the system tray via Electron
+  // Improved methods to interact with the system tray
   public showTrayIcon(): void {
-    if (this.isDesktopApp && (window as any).electron) {
+    if (this.isDesktopApp && window.electron) {
       console.log("Showing system tray icon via IPC");
-      (window as any).electron.send('show-tray');
+      try {
+        window.electron.send('show-tray');
+        console.log("Show tray command sent successfully");
+      } catch (error) {
+        console.error("Error showing tray:", error);
+      }
     }
     console.log("System tray icon shown");
   }
 
   public hideTrayIcon(): void {
-    if (this.isDesktopApp && (window as any).electron) {
+    if (this.isDesktopApp && window.electron) {
       console.log("Hiding system tray icon via IPC");
-      (window as any).electron.send('hide-tray');
+      window.electron.send('hide-tray');
     }
     console.log("System tray icon hidden");
   }
 
   public setTrayTooltip(tooltip: string): void {
-    if (this.isDesktopApp && (window as any).electron) {
+    if (this.isDesktopApp && window.electron) {
       console.log(`Setting tray tooltip to: ${tooltip}`);
-      (window as any).electron.send('set-tray-tooltip', tooltip);
+      window.electron.send('set-tray-tooltip', tooltip);
     }
     console.log(`Set tray tooltip to: ${tooltip}`);
   }
   
-  // Method to set the tray icon state
+  // Updated method to set the tray icon state
   public setTrayIcon(state: 'default' | 'active' | 'rest'): void {
     if (this.trayIconState === state) return; // No change needed
     
     this.trayIconState = state;
-    if (this.isDesktopApp && (window as any).electron) {
-      console.log(`Setting tray icon state to: ${state}`);
-      (window as any).electron.send('set-tray-icon', state);
+    console.log(`Setting tray icon state to: ${state}`);
+    
+    if (this.isDesktopApp && window.electron) {
+      window.electron.send('set-tray-icon', state);
     }
-    console.log(`Set tray icon state to: ${state}`);
+  }
+  
+  // Singleton instance accessor
+  public static getInstance(): SystemTrayService {
+    if (!SystemTrayService.instance) {
+      SystemTrayService.instance = new SystemTrayService();
+    }
+    return SystemTrayService.instance;
+  }
+  
+  // Get current screen time
+  public getScreenTime(): number {
+    this.updateScreenTime(); // Force update to get current value
+    return this.screenTimeToday;
+  }
+  
+  // Get formatted screen time
+  public getFormattedScreenTime(): string {
+    return this.formatScreenTime(this.getScreenTime());
+  }
+  
+  // Get current focus score
+  public getFocusScore(): number {
+    return this.focusScore;
+  }
+  
+  // Get current distraction count
+  public getDistractionCount(): number {
+    return this.distractionCount;
   }
 }
 
