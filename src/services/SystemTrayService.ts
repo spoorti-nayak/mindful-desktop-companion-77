@@ -1,3 +1,4 @@
+
 // This service handles system tray functionality and active window monitoring
 
 class SystemTrayService {
@@ -127,27 +128,6 @@ class SystemTrayService {
     const minutes = totalMinutes % 60;
     
     return `${hours}h ${minutes}m`;
-  }
-  
-  // Get current screen time
-  public getScreenTime(): number {
-    this.updateScreenTime(); // Force update to get current value
-    return this.screenTimeToday;
-  }
-  
-  // Get formatted screen time
-  public getFormattedScreenTime(): string {
-    return this.formatScreenTime(this.getScreenTime());
-  }
-  
-  // Get current focus score
-  public getFocusScore(): number {
-    return this.focusScore;
-  }
-  
-  // Get current distraction count
-  public getDistractionCount(): number {
-    return this.distractionCount;
   }
 
   // Detect if we're running in a desktop environment
@@ -565,14 +545,6 @@ class SystemTrayService {
     if (this.isDesktopApp && window.electron) {
       window.electron.send('set-tray-icon', state);
     }
-  }
-  
-  // Singleton instance accessor
-  public static getInstance(): SystemTrayService {
-    if (!SystemTrayService.instance) {
-      SystemTrayService.instance = new SystemTrayService();
-    }
-    return SystemTrayService.instance;
   }
   
   // Get current screen time
