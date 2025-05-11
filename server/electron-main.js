@@ -18,6 +18,7 @@ let isAppQuitting = false;
 let lastActiveWindow = null;
 let lastActiveWindowTime = Date.now();
 let isFocusMode = false;
+let notificationWindow = null;
 
 async function createWindow() {
   try {
@@ -88,6 +89,9 @@ async function createWindow() {
       showNotification("App Minimized", "Mindful Desktop Companion is still running in the system tray.");
     });
     
+    // Create a hidden notification window that will be used to display notifications on top
+    createNotificationWindow();
+    
     // Test notification on startup
     setTimeout(() => {
       showNotification("App Started", "Mindful Desktop Companion is now running.");
@@ -96,6 +100,43 @@ async function createWindow() {
     console.error("Error during startup:", error);
     app.exit(1);
   }
+}
+
+function createNotificationWindow() {
+  // Get primary display size for positioning
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+  
+  // Create a small always-on-top window for notifications
+  notificationWindow = new BrowserWindow({
+    width: 420,
+    height: 150,
+    x: Math.floor((width - 420) / 2),
+    y: Math.floor((height - 150) / 2),
+    frame: false,
+    transparent: true,
+    resizable: false,
+    skipTaskbar: true,
+    show: false,
+    alwaysOnTop: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
+    }
+  });
+  
+  // Load a blank HTML
+  notificationWindow.loadURL('data:text/html;charset=utf-8,<html><body style="background: transparent;"></body></html>');
+  
+  // Hide the window when it loses focus (user clicks away)
+  notificationWindow.on('blur', () => {
+    if (notificationWindow && !notificationWindow.isDestroyed()) {
+      notificationWindow.hide();
+    }
+  });
+  
+  console.log("Notification window created");
 }
 
 function createTray() {
@@ -282,66 +323,155 @@ function showNotification(title, body) {
   try {
     console.log(`Showing notification: ${title} - ${body}`);
     
-    if (Notification.isSupported()) {
-      // Get the primary display dimensions
-      const primaryDisplay = screen.getPrimaryDisplay();
-      const { width, height } = primaryDisplay.workAreaSize;
+    // Ensure the notification window exists
+    if (!notificationWindow || notificationWindow.isDestroyed()) {
+      createNotificationWindow();
+    }
+    
+    // Get the primary display dimensions for exact center positioning
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.workAreaSize;
+    
+    // Center the notification window
+    if (notificationWindow) {
+      notificationWindow.setPosition(
+        Math.floor((width - 420) / 2),
+        Math.floor((height - 150) / 2)
+      );
       
-      // Create a small invisible window to position the notification
-      const notificationWindow = new BrowserWindow({
-        width: 1,
-        height: 1,
-        x: Math.floor(width / 2),
-        y: Math.floor(height / 2),
-        show: false,
-        frame: false,
-        skipTaskbar: true,
-        transparent: true,
-        focusable: false,
-        alwaysOnTop: true, // Make sure notification is on top
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true
-        }
-      });
+      // Create HTML content for the notification
+      const notificationContent = `
+        <html>
+        <head>
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+              background-color: rgba(0, 0, 0, 0.7);
+              border-radius: 8px;
+              overflow: hidden;
+              color: white;
+              display: flex;
+              flex-direction: column;
+              height: 100vh;
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+              animation: fadeIn 0.3s ease-in;
+            }
+            .content {
+              padding: 16px;
+              flex: 1;
+            }
+            .title {
+              font-size: 18px;
+              font-weight: bold;
+              margin-bottom: 8px;
+            }
+            .body {
+              font-size: 14px;
+              opacity: 0.9;
+            }
+            .button-container {
+              display: flex;
+              justify-content: flex-end;
+              padding: 8px 16px 16px;
+            }
+            .close-button {
+              background: rgba(255, 255, 255, 0.2);
+              border: none;
+              color: white;
+              padding: 6px 12px;
+              border-radius: 4px;
+              cursor: pointer;
+              font-size: 14px;
+            }
+            .close-button:hover {
+              background: rgba(255, 255, 255, 0.3);
+            }
+            @keyframes fadeIn {
+              from { opacity: 0; transform: scale(0.95); }
+              to { opacity: 1; transform: scale(1); }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="content">
+            <div class="title">${title}</div>
+            <div class="body">${body}</div>
+          </div>
+          <div class="button-container">
+            <button class="close-button" onclick="window.close()">Dismiss</button>
+          </div>
+          <script>
+            // Auto-close after 8 seconds
+            setTimeout(() => {
+              window.close();
+            }, 8000);
+            
+            // Allow clicking anywhere to close
+            document.body.addEventListener('click', (e) => {
+              if (!e.target.classList.contains('close-button')) {
+                window.close();
+              }
+            });
+          </script>
+        </body>
+        </html>
+      `;
       
-      // Create the notification
-      const notification = new Notification({
-        title: title,
-        body: body,
-        icon: path.join(__dirname, 'assets', 'icon.png'),
-        silent: false,
-        urgency: 'critical' // Make notification more visible
-      });
+      // Load the notification content
+      notificationWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(notificationContent)}`);
       
-      // After the window is created, show the notification
-      notificationWindow.once('ready-to-show', () => {
+      // Show the notification window
+      notificationWindow.show();
+      notificationWindow.focus();
+      
+      // Also send as a native notification (as fallback)
+      if (Notification.isSupported()) {
+        const notification = new Notification({
+          title: title,
+          body: body,
+          icon: path.join(__dirname, 'assets', 'icon.png'),
+          silent: false,
+        });
+        
         notification.show();
         
-        // Clean up the notification window after a delay
-        setTimeout(() => {
-          if (notificationWindow && !notificationWindow.isDestroyed()) {
-            notificationWindow.destroy();
+        // Handle notification click - show main app window
+        notification.on('click', () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.show();
+            mainWindow.focus();
           }
-        }, 5000);
-      });
+        });
+      }
       
-      notificationWindow.loadURL('about:blank');
-      
-      // Handle notification click
-      notification.on('click', () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.show();
-          mainWindow.focus();
-        }
-      });
-      
-      console.log("Notification shown from center of screen");
+      console.log("Notification shown on top of all windows");
     } else {
-      console.log("Native notifications not supported");
+      console.log("Notification window not available, falling back to native notification");
+      
+      if (Notification.isSupported()) {
+        const notification = new Notification({
+          title: title,
+          body: body,
+          icon: path.join(__dirname, 'assets', 'icon.png')
+        });
+        
+        notification.show();
+      }
     }
   } catch (error) {
     console.error("Error showing notification:", error);
+    
+    // Fallback to basic notification if error occurs
+    if (Notification.isSupported()) {
+      const notification = new Notification({
+        title: title,
+        body: body
+      });
+      
+      notification.show();
+    }
   }
 }
 
@@ -419,6 +549,11 @@ app.on('before-quit', () => {
   if (activeWindowInterval) {
     clearInterval(activeWindowInterval);
     activeWindowInterval = null;
+  }
+  
+  // Clean up the notification window
+  if (notificationWindow && !notificationWindow.isDestroyed()) {
+    notificationWindow.destroy();
   }
 });
 

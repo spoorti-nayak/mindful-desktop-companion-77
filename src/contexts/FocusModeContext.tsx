@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import SystemTrayService from '@/services/SystemTrayService';
 import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 
 interface FocusModeContextType {
   isFocusMode: boolean;
@@ -28,6 +29,8 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [whitelist, setWhitelist] = useState<string[]>([]);
   const [dimInsteadOfBlock, setDimInsteadOfBlock] = useState(true);
   const [lastActiveWindow, setLastActiveWindow] = useState<string | null>(null);
+  const [previousActiveWindow, setPreviousActiveWindow] = useState<string | null>(null);
+  const { toast: centerToast } = useToast();
   
   // Load saved whitelist from localStorage on initial mount only
   useEffect(() => {
@@ -52,6 +55,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     // Register for active window change events using custom event listener
     const handleActiveWindowChanged = (event: CustomEvent<string>) => {
+      setPreviousActiveWindow(lastActiveWindow);
       setLastActiveWindow(event.detail);
     };
     
@@ -66,7 +70,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return () => {
       window.removeEventListener('active-window-changed', handleActiveWindowChanged as EventListener);
     };
-  }, []);
+  }, [lastActiveWindow]);
   
   // Save whitelist whenever it changes
   useEffect(() => {
@@ -90,13 +94,24 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     if (!isFocusMode || !lastActiveWindow) return;
     
-    // Skip empty app names and already whitelisted apps
-    if (lastActiveWindow.trim() === '' || whitelist.includes(lastActiveWindow)) {
+    // Check if we're switching FROM a whitelisted app TO a non-whitelisted app
+    const isComingFromWhitelist = previousActiveWindow && whitelist.includes(previousActiveWindow);
+    const isGoingToNonWhitelist = lastActiveWindow && !whitelist.includes(lastActiveWindow);
+    
+    if (isComingFromWhitelist && isGoingToNonWhitelist) {
+      console.log(`Switching from whitelisted app ${previousActiveWindow} to non-whitelisted app ${lastActiveWindow}`);
+      handleNonWhitelistedApp(lastActiveWindow);
+    }
+    // Skip empty app names
+    else if (lastActiveWindow.trim() === '') {
       return;
     }
-    
-    handleNonWhitelistedApp(lastActiveWindow);
-  }, [isFocusMode, lastActiveWindow, whitelist]);
+    // If not coming from whitelist but going to non-whitelist
+    else if (isGoingToNonWhitelist) {
+      console.log(`Switching to non-whitelisted app ${lastActiveWindow}`);
+      handleNonWhitelistedApp(lastActiveWindow);
+    }
+  }, [isFocusMode, lastActiveWindow, whitelist, previousActiveWindow]);
   
   const toggleFocusMode = useCallback(() => {
     const newState = !isFocusMode;
@@ -139,10 +154,20 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
   
   const handleNonWhitelistedApp = useCallback((appName: string) => {
-    // Show notification to the user
-    toast.warning("You're outside your focus zone", {
-      description: `${appName} is not in your whitelist`,
+    // Show notification using the centered toast
+    centerToast({
+      title: "Focus Alert",
+      description: `You're outside your focus zone. ${appName} is not in your whitelist`,
+      duration: 10000, // Show longer to ensure user sees it
     });
+    
+    // Also show notification to the system tray (as backup)
+    if (window.electron) {
+      window.electron.send('show-native-notification', {
+        title: "Focus Mode Alert", 
+        body: `You're outside your focus zone. ${appName} is not in your whitelist`
+      });
+    }
     
     // If we're in dim mode, apply dimming effect to the screen
     if (dimInsteadOfBlock) {
@@ -154,7 +179,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         description: "Focus Mode is blocking this application"
       });
     }
-  }, [dimInsteadOfBlock]);
+  }, [centerToast, dimInsteadOfBlock]);
   
   const applyDimEffect = useCallback(() => {
     // In a real implementation with Electron, we would create an overlay

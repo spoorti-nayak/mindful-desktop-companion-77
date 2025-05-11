@@ -30,6 +30,14 @@ export function useSystemTray() {
           description: message,
           duration: 8000, // Show longer for important focus notifications
         });
+        
+        // Also send to electron for system-level notification
+        if (window.electron) {
+          window.electron.send('show-native-notification', {
+            title: "Focus Alert",
+            body: message
+          });
+        }
       } else {
         // Use bottom-right toast for system notifications
         sonnerToast(message);
