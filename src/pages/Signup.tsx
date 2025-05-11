@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
 
 const Signup = () => {
   const [name, setName] = useState("");
@@ -36,9 +37,17 @@ const Signup = () => {
     
     if (!validatePassword()) return;
     
-    const success = await signup(name, email, password);
-    if (success) {
-      navigate("/dashboard");
+    try {
+      const success = await signup(name, email, password);
+      if (success) {
+        toast.success(`Welcome, ${name}! Your account has been created.`);
+        navigate("/dashboard");
+      } else {
+        toast.error("Failed to create account. Please try again.");
+      }
+    } catch (error) {
+      console.error("Signup error:", error);
+      toast.error("An unexpected error occurred. Please try again.");
     }
   };
 

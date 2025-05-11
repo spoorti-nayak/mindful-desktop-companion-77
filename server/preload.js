@@ -12,7 +12,8 @@ contextBridge.exposeInMainWorld('electron', {
       'set-tray-tooltip', 
       'set-tray-icon',
       'show-native-notification',
-      'toggle-focus-mode'
+      'toggle-focus-mode',
+      'save-timer-settings'
     ];
     
     if (validSendChannels.includes(channel)) {
@@ -28,7 +29,8 @@ contextBridge.exposeInMainWorld('electron', {
       'active-window-changed', 
       'blink-detected',
       'eye-care-reminder',
-      'focus-mode-changed'
+      'focus-mode-changed',
+      'timer-settings-saved'
     ];
     
     if (validReceiveChannels.includes(channel)) {

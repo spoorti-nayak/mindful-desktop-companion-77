@@ -2,14 +2,13 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Eye, EyeOff, Clock, Activity } from "lucide-react";
+import { Eye, EyeOff, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTimer } from "@/contexts/TimerContext";
 import { useSystemTray } from "@/hooks/use-system-tray";
 import { useEyeCareTray } from "@/hooks/use-eye-care-tray"; 
 import { useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
-import { useBlinkDetection } from "@/hooks/use-blink-detection";
 
 interface EyeCareReminderProps {
   className?: string;
@@ -33,9 +32,6 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
   
   // Initialize eye care tray functionality
   useEyeCareTray();
-  
-  // Initialize blink detection
-  const { isDetecting, toggleDetection } = useBlinkDetection();
   
   // Set up notifications for eye care events
   useEffect(() => {
@@ -88,37 +84,6 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
       pauseEyeCareTimer();
     } else {
       startEyeCareTimer();
-    }
-  };
-
-  const handleToggleBlinkDetection = async () => {
-    const success = await toggleDetection();
-    
-    if (success) {
-      toast({
-        title: "Blink Reminders Activated",
-        description: "You'll receive reminders to blink every 20 minutes.",
-        duration: 5000,
-      });
-      
-      // Send a notification via system tray as well
-      if (typeof window !== 'undefined' && window.electron) {
-        try {
-          console.log("Sending blink reminder activation notification");
-          window.electron.send('show-native-notification', {
-            title: "Blink Reminders Activated",
-            body: "You'll receive reminders to blink every 20 minutes."
-          });
-        } catch (error) {
-          console.error("Failed to send blink reminder notification:", error);
-        }
-      }
-    } else {
-      toast({
-        title: "Blink Reminders Deactivated",
-        description: "20-minute blink reminders have been turned off.",
-        duration: 5000,
-      });
     }
   };
   
@@ -194,17 +159,6 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
             <Clock className="mr-2 h-4 w-4" /> Reset
           </Button>
         </div>
-        
-        {/* Blink detection toggle button */}
-        <Button
-          variant={isDetecting ? "default" : "outline"}
-          size="sm"
-          onClick={handleToggleBlinkDetection}
-          className="rounded-full mt-2"
-        >
-          <Activity className="mr-2 h-4 w-4" />
-          {isDetecting ? "Disable Blink Reminders" : "Enable Blink Reminders"}
-        </Button>
 
         <div className="text-center text-sm text-muted-foreground">
           {isEyeCareResting 
@@ -217,13 +171,6 @@ export function EyeCareReminder({ className }: EyeCareReminderProps) {
             ? "Eye care reminders will show even when minimized" 
             : "Running in browser mode - minimize to tray disabled"}
         </div>
-        
-        {isDetecting && (
-          <div className="text-xs text-green-500 flex items-center">
-            <Activity className="h-3 w-3 mr-1 animate-pulse" />
-            Blink reminders active - every 20 minutes
-          </div>
-        )}
       </CardContent>
     </Card>
   );

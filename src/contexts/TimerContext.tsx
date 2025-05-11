@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
@@ -102,6 +101,20 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     return saved ? parseInt(saved) : 20; // Default: 20 seconds
   });
 
+  // Auto-start timers when app loads
+  useEffect(() => {
+    // Auto-start both timers after a short delay
+    const startTimersTimeout = setTimeout(() => {
+      setIsPomodoroActive(true);
+      setIsEyeCareActive(true);
+      console.log("Auto-started Pomodoro and Eye Care timers");
+    }, 1500); // Short delay to ensure everything is loaded
+
+    return () => {
+      clearTimeout(startTimersTimeout);
+    };
+  }, []);
+
   // Save Pomodoro state to localStorage
   useEffect(() => {
     localStorage.setItem("pomodoroMinutes", pomodoroMinutes.toString());
@@ -133,6 +146,12 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     setEyeCareWorkDuration(settings.eyeCareWorkDuration);
     setEyeCareRestDuration(settings.eyeCareRestDuration);
     
+    // Save settings to localStorage for persistence
+    localStorage.setItem("pomodoroDuration", settings.pomodoroDuration.toString());
+    localStorage.setItem("pomodoroBreakDuration", settings.pomodoroBreakDuration.toString());
+    localStorage.setItem("eyeCareWorkDuration", settings.eyeCareWorkDuration.toString());
+    localStorage.setItem("eyeCareRestDuration", settings.eyeCareRestDuration.toString());
+    
     // Reset timers with new durations
     if (!isPomodoroActive) {
       resetPomodoroTimer(isPomodoroBreak);
@@ -141,6 +160,9 @@ export function TimerProvider({ children }: { children: React.ReactNode }) {
     if (!isEyeCareActive) {
       resetEyeCareTimer();
     }
+
+    // Show success toast
+    sonnerToast.success("Timer settings updated successfully!");
   };
 
   // Pomodoro Timer Logic
