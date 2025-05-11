@@ -1,4 +1,3 @@
-
 // This service handles system tray functionality and active window monitoring
 
 class SystemTrayService {
@@ -23,14 +22,20 @@ class SystemTrayService {
   private lastActivityTime: number = 0;
   private screenTimeListeners: Array<(screenTime: number) => void> = [];
   private focusScoreListeners: Array<(score: number) => void> = [];
-  private appUsageListeners: Array<(appUsage: Array<{name: string, time: number, type: string}>) => void> = [];
-  private appUsageData: Map<string, {time: number, type: string}> = new Map();
+  private appUsageListeners: Array<(appUsage: Array<{name: string, time: number, type: string, lastActiveTime?: number}>) => void> = [];
+  private appUsageData: Map<string, {time: number, type: string, lastActiveTime: number}> = new Map();
   
   private userIdleTime: number = 0;
   private idleCheckInterval: NodeJS.Timeout | null = null;
   private focusScore: number = 100;
   private distractionCount: number = 0;
   private focusScoreUpdateListeners: Array<(score: number, distractions: number) => void> = [];
+  private persistedData: {
+    screenTimeToday: number,
+    focusScore: number,
+    distractionCount: number,
+    appUsageData: Array<{name: string, time: number, type: string, lastActiveTime: number}>
+  } | null = null;
 
   private constructor() {
     console.log("System tray service initialized");
@@ -38,13 +43,81 @@ class SystemTrayService {
     // Check if running in Electron or similar desktop environment
     this.isDesktopApp = this.checkIsDesktopApp();
     
+    // Try to load persisted data from localStorage on initialization
+    this.loadPersistedData();
+    
     // Initialize screen time tracking
     this.initializeScreenTimeTracking();
     
     if (this.isDesktopApp) {
       this.initializeDesktopMonitoring();
     }
-    // Removed the simulation code that was creating fake data
+  }
+
+  // Persist data to localStorage before app closes or minimizes
+  private persistData(): void {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const dataToSave = {
+        screenTimeToday: this.screenTimeToday,
+        focusScore: this.focusScore,
+        distractionCount: this.distractionCount,
+        appUsageData: Array.from(this.appUsageData.entries()).map(([name, data]) => ({
+          name,
+          time: data.time,
+          type: data.type,
+          lastActiveTime: data.lastActiveTime
+        })),
+        timestamp: Date.now()
+      };
+      
+      localStorage.setItem('systemTrayData', JSON.stringify(dataToSave));
+      console.log("Persisted data to localStorage:", dataToSave);
+    } catch (error) {
+      console.error("Failed to persist data:", error);
+    }
+  }
+  
+  // Load persisted data from localStorage
+  private loadPersistedData(): void {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const savedData = localStorage.getItem('systemTrayData');
+      if (!savedData) return;
+      
+      const parsedData = JSON.parse(savedData);
+      const timestamp = parsedData.timestamp || 0;
+      const now = Date.now();
+      
+      // Only load data if it's from today (within the last 24h)
+      if (now - timestamp < 24 * 60 * 60 * 1000) {
+        this.screenTimeToday = parsedData.screenTimeToday || 0;
+        this.focusScore = parsedData.focusScore || 100;
+        this.distractionCount = parsedData.distractionCount || 0;
+        
+        // Restore app usage data
+        if (parsedData.appUsageData && Array.isArray(parsedData.appUsageData)) {
+          parsedData.appUsageData.forEach((app: any) => {
+            if (app.name && app.time != null && app.type) {
+              this.appUsageData.set(app.name, {
+                time: app.time,
+                type: app.type,
+                lastActiveTime: app.lastActiveTime || now
+              });
+            }
+          });
+        }
+        
+        console.log("Loaded persisted data from localStorage:", parsedData);
+      } else {
+        console.log("Saved data is too old, starting fresh");
+        localStorage.removeItem('systemTrayData');
+      }
+    } catch (error) {
+      console.error("Failed to load persisted data:", error);
+    }
   }
 
   // Initialize screen time tracking
@@ -73,6 +146,15 @@ class SystemTrayService {
     
     // Setup daily reset at midnight
     this.setupDailyReset();
+    
+    // Add event listener to persist data before unload or minimize
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', () => this.persistData());
+      window.addEventListener('blur', () => this.persistData());
+      
+      // Also persist data periodically to handle crashes
+      setInterval(() => this.persistData(), 60000); // Every minute
+    }
   }
   
   // Setup daily reset at midnight
@@ -189,7 +271,7 @@ class SystemTrayService {
     
     // Get or create app usage data
     if (!this.appUsageData.has(appName)) {
-      this.appUsageData.set(appName, { time: 0, type: appType });
+      this.appUsageData.set(appName, { time: 0, type: appType, lastActiveTime: now });
     }
     
     // Update app usage time (only if not idle)
@@ -198,6 +280,14 @@ class SystemTrayService {
       const appData = this.appUsageData.get(appName);
       if (appData) {
         appData.time += timeElapsed;
+        appData.lastActiveTime = now; // Update the last active time
+        this.appUsageData.set(appName, appData);
+      }
+    } else {
+      // Just update the last active time
+      const appData = this.appUsageData.get(appName);
+      if (appData) {
+        appData.lastActiveTime = now;
         this.appUsageData.set(appName, appData);
       }
     }
@@ -303,21 +393,22 @@ class SystemTrayService {
   }
   
   // Add an app usage listener
-  public addAppUsageListener(callback: (appUsage: Array<{name: string, time: number, type: string}>) => void): void {
+  public addAppUsageListener(callback: (appUsage: Array<{name: string, time: number, type: string, lastActiveTime?: number}>) => void): void {
     this.appUsageListeners.push(callback);
     
     // Initial callback with current values
     const appUsageArray = Array.from(this.appUsageData.entries()).map(([name, data]) => ({
       name,
       time: data.time,
-      type: data.type
+      type: data.type,
+      lastActiveTime: data.lastActiveTime
     }));
     
     callback(appUsageArray);
   }
   
   // Remove an app usage listener
-  public removeAppUsageListener(callback: (appUsage: Array<{name: string, time: number, type: string}>) => void): void {
+  public removeAppUsageListener(callback: (appUsage: Array<{name: string, time: number, type: string, lastActiveTime?: number}>) => void): void {
     const index = this.appUsageListeners.indexOf(callback);
     if (index > -1) {
       this.appUsageListeners.splice(index, 1);
@@ -330,10 +421,9 @@ class SystemTrayService {
       .map(([name, data]) => ({
         name,
         time: data.time,
-        type: data.type as "productive" | "distraction" | "communication"
-      }))
-      .sort((a, b) => b.time - a.time) // Sort by time descending
-      .slice(0, 10); // Limit to top 10
+        type: data.type as "productive" | "distraction" | "communication",
+        lastActiveTime: data.lastActiveTime
+      }));
     
     this.appUsageListeners.forEach(listener => {
       listener(appUsageArray);

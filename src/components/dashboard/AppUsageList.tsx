@@ -4,11 +4,13 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import SystemTrayService from "@/services/SystemTrayService";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface AppUsageItem {
   name: string;
   time: number;
   type: "productive" | "distraction" | "communication";
+  lastActiveTime?: number;
 }
 
 interface AppUsageListProps {
@@ -24,15 +26,31 @@ export function AppUsageList({ className }: AppUsageListProps) {
     const systemTray = SystemTrayService.getInstance();
     
     // Subscribe to app usage updates
-    const handleAppUsageUpdate = (appUsage: Array<{name: string, time: number, type: string}>) => {
+    const handleAppUsageUpdate = (appUsage: Array<{name: string, time: number, type: string, lastActiveTime?: number}>) => {
       // Convert to formatted app usage items
       const formattedAppUsage: AppUsageItem[] = appUsage.map(app => ({
         name: app.name,
         time: app.time,
-        type: app.type as "productive" | "distraction" | "communication"
+        type: app.type as "productive" | "distraction" | "communication",
+        lastActiveTime: app.lastActiveTime
       }));
       
-      setAppUsageData(formattedAppUsage);
+      // Sort by most recent activity (lastActiveTime) first, then by time spent
+      const sortedAppUsage = formattedAppUsage.sort((a, b) => {
+        // First sort by lastActiveTime if available
+        if (a.lastActiveTime && b.lastActiveTime) {
+          return b.lastActiveTime - a.lastActiveTime;
+        } else if (a.lastActiveTime) {
+          return -1; // a has lastActiveTime, b doesn't
+        } else if (b.lastActiveTime) {
+          return 1; // b has lastActiveTime, a doesn't
+        }
+        
+        // Fall back to sorting by time spent
+        return b.time - a.time;
+      });
+      
+      setAppUsageData(sortedAppUsage);
       setIsLoading(false);
     };
     
@@ -64,7 +82,7 @@ export function AppUsageList({ className }: AppUsageListProps) {
     if (hours > 0) {
       return `${hours}h ${minutes}m`;
     } else if (minutes > 0) {
-      return `${minutes}m`;
+      return `${minutes}m ${seconds}s`;
     } else {
       return `${seconds}s`;
     }
@@ -86,27 +104,29 @@ export function AppUsageList({ className }: AppUsageListProps) {
             ))}
           </div>
         ) : appUsageData.length > 0 ? (
-          <div className="space-y-3">
-            {appUsageData.map((app) => (
-              <div
-                key={app.name}
-                className="flex items-center justify-between rounded-lg border p-3"
-              >
-                <div className="flex items-center space-x-3">
-                  <div
-                    className={cn(
-                      "h-3 w-3 rounded-full",
-                      app.type === "productive" && "bg-attention-green-400",
-                      app.type === "distraction" && "bg-attention-warm-400",
-                      app.type === "communication" && "bg-attention-blue-400"
-                    )}
-                  ></div>
-                  <span>{app.name}</span>
+          <ScrollArea className="h-[250px] pr-4">
+            <div className="space-y-3">
+              {appUsageData.map((app) => (
+                <div
+                  key={app.name}
+                  className="flex items-center justify-between rounded-lg border p-3"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div
+                      className={cn(
+                        "h-3 w-3 rounded-full",
+                        app.type === "productive" && "bg-attention-green-400",
+                        app.type === "distraction" && "bg-attention-warm-400",
+                        app.type === "communication" && "bg-attention-blue-400"
+                      )}
+                    ></div>
+                    <span>{app.name}</span>
+                  </div>
+                  <div className="text-sm font-medium">{formatTime(app.time)}</div>
                 </div>
-                <div className="text-sm font-medium">{formatTime(app.time)}</div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </ScrollArea>
         ) : (
           <div className="flex flex-col items-center justify-center py-8 text-center">
             <p className="text-muted-foreground">No app usage data available</p>
