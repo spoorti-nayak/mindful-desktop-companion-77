@@ -156,23 +156,6 @@ export function SettingsPanel() {
               </div>
               <Switch id="eyeCareNotifications" defaultChecked />
             </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="soundEffects">Sound effects</Label>
-                <p className="text-sm text-muted-foreground">
-                  Play sounds with notifications
-                </p>
-              </div>
-              <Switch id="soundEffects" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="quietHours">Quiet hours</Label>
-              <div className="flex space-x-2">
-                <Input id="quietHoursStart" type="time" defaultValue="22:00" />
-                <span className="flex items-center">to</span>
-                <Input id="quietHoursEnd" type="time" defaultValue="08:00" />
-              </div>
-            </div>
           </CardContent>
           <CardFooter className="flex justify-end">
             <Button onClick={handleSave}>Save Changes</Button>

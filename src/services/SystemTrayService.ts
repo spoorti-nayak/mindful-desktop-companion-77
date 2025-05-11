@@ -1,4 +1,3 @@
-
 // This service handles system tray functionality and active window monitoring
 
 class SystemTrayService {
@@ -14,6 +13,7 @@ class SystemTrayService {
   private trayIconState: 'default' | 'active' | 'rest' = 'default';
   private lastNotificationTime: number = 0;
   private notificationCooldown: number = 180000;
+  private processedNotifications: Set<string> = new Set();
 
   // Screen time tracking variables
   private screenTimeStart: number = 0;
@@ -289,6 +289,14 @@ class SystemTrayService {
       const unsubscribeEyeCare = window.electron.receive('eye-care-reminder', () => {
         this.notifyEyeCareBreak();
       });
+      
+      // Listen for notification dismissed events
+      window.addEventListener('notification-dismissed', (e: Event) => {
+        const notificationId = (e as CustomEvent<string>).detail;
+        if (notificationId) {
+          this.processedNotifications.add(notificationId);
+        }
+      });
 
       // Force a test notification on initialization
       setTimeout(() => {
@@ -302,39 +310,64 @@ class SystemTrayService {
     const appName = appOwner !== "Unknown" ? appOwner : appTitle;
     const now = Date.now();
     
+    // Extract just the core app name for better matching
+    const coreAppName = this.extractAppName(appName);
+    
     // Determine app type (productive, distraction, communication)
-    let appType = this.determineAppType(appName);
+    let appType = this.determineAppType(coreAppName);
     
     // Get or create app usage data
-    if (!this.appUsageData.has(appName)) {
-      this.appUsageData.set(appName, { time: 0, type: appType, lastActiveTime: now });
+    if (!this.appUsageData.has(coreAppName)) {
+      this.appUsageData.set(coreAppName, { time: 0, type: appType, lastActiveTime: now });
     }
     
     // Update app usage time (only if not idle)
-    if (this.userIdleTime < this.idleThreshold && this.lastActiveWindow === appName) {
+    if (this.userIdleTime < this.idleThreshold && this.lastActiveWindow === coreAppName) {
       const timeElapsed = now - this.lastActivityTime;
-      const appData = this.appUsageData.get(appName);
+      const appData = this.appUsageData.get(coreAppName);
       if (appData) {
         appData.time += timeElapsed;
         appData.lastActiveTime = now; // Update the last active time
-        this.appUsageData.set(appName, appData);
+        this.appUsageData.set(coreAppName, appData);
       }
     } else {
       // Just update the last active time
-      const appData = this.appUsageData.get(appName);
+      const appData = this.appUsageData.get(coreAppName);
       if (appData) {
         appData.lastActiveTime = now;
-        this.appUsageData.set(appName, appData);
+        this.appUsageData.set(coreAppName, appData);
       }
     }
     
     // Check focus mode - if active and app is not whitelisted
-    if (this.isFocusMode && !this.focusModeWhitelist.includes(appName)) {
-      this.notifyFocusModeViolation(appName);
+    if (this.isFocusMode && !this.isAppInWhitelist(coreAppName, this.focusModeWhitelist)) {
+      this.notifyFocusModeViolation(coreAppName);
     }
     
     // Notify listeners
     this.notifyAppUsageListeners();
+  }
+  
+  // Extract the core app name from window title for more reliable matching
+  private extractAppName(windowTitle: string): string {
+    if (!windowTitle) return '';
+    
+    // Common patterns in window titles
+    const appNameMatches = windowTitle.match(/^(.*?)(?:\s[-–—]\s|\s\|\s|\s:|\s\d|$)/);
+    return appNameMatches?.[1]?.trim() || windowTitle.trim();
+  }
+  
+  // More flexible app matching against whitelist
+  private isAppInWhitelist(appName: string, whitelist: string[]): boolean {
+    if (!appName) return false;
+    
+    const normalizedAppName = appName.toLowerCase();
+    
+    return whitelist.some(whitelistedApp => {
+      const normalizedWhitelistedApp = whitelistedApp.toLowerCase();
+      return normalizedAppName.includes(normalizedWhitelistedApp) || 
+             normalizedWhitelistedApp.includes(normalizedAppName);
+    });
   }
   
   // Determine app type based on name
@@ -561,13 +594,21 @@ class SystemTrayService {
   }
   
   private notifyFocusModeViolation(appName: string): void {
+    const notificationId = `focus-mode-violation-${appName}`;
+    
+    // Don't show notification if it has been dismissed recently
+    if (this.processedNotifications.has(notificationId)) {
+      return;
+    }
+    
     const message = `You're outside your focus zone. ${appName} is not in your whitelist.`;
     
     if (this.isDesktopApp && window.electron) {
       console.log("Sending focus mode violation notification via IPC");
       window.electron.send('show-native-notification', {
         title: "Focus Mode Alert", 
-        body: message
+        body: message,
+        notificationId: notificationId
       });
     }
     
@@ -747,6 +788,12 @@ class SystemTrayService {
   // Focus Mode methods
   public setFocusMode(active: boolean): void {
     this.isFocusMode = active;
+    
+    // Clear processed notifications when toggling focus mode
+    if (active) {
+      this.processedNotifications.clear();
+    }
+    
     this.notifyFocusModeListeners();
     this.persistData();
     
@@ -767,6 +814,10 @@ class SystemTrayService {
   
   public setFocusModeWhitelist(whitelist: string[]): void {
     this.focusModeWhitelist = whitelist;
+    
+    // Clear processed notifications when changing whitelist
+    this.processedNotifications.clear();
+    
     this.persistData();
   }
   
@@ -799,6 +850,11 @@ class SystemTrayService {
     this.focusModeListeners.forEach(listener => {
       listener(this.isFocusMode);
     });
+  }
+  
+  // Reset notification tracking
+  public resetNotifications(): void {
+    this.processedNotifications.clear();
   }
 }
 

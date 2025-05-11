@@ -30,6 +30,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [dimInsteadOfBlock, setDimInsteadOfBlock] = useState(true);
   const [lastActiveWindow, setLastActiveWindow] = useState<string | null>(null);
   const [previousActiveWindow, setPreviousActiveWindow] = useState<string | null>(null);
+  const [lastNotificationDismissed, setLastNotificationDismissed] = useState<string | null>(null);
   const { toast: centerToast } = useToast();
   
   // Load saved whitelist from localStorage on initial mount only
@@ -59,8 +60,14 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setLastActiveWindow(event.detail);
     };
     
+    // Track dismissed notifications
+    const handleNotificationDismissed = (event: CustomEvent<string>) => {
+      setLastNotificationDismissed(event.detail);
+    };
+    
     // Use standard event listener since SystemTrayService doesn't have a receive method
     window.addEventListener('active-window-changed', handleActiveWindowChanged as EventListener);
+    window.addEventListener('notification-dismissed', handleNotificationDismissed as EventListener);
     
     // Request the current active window
     if (window.electron) {
@@ -69,6 +76,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     return () => {
       window.removeEventListener('active-window-changed', handleActiveWindowChanged as EventListener);
+      window.removeEventListener('notification-dismissed', handleNotificationDismissed as EventListener);
     };
   }, [lastActiveWindow]);
   
@@ -94,24 +102,47 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     if (!isFocusMode || !lastActiveWindow) return;
     
-    // Check if we're switching FROM a whitelisted app TO a non-whitelisted app
-    const isComingFromWhitelist = previousActiveWindow && whitelist.includes(previousActiveWindow);
-    const isGoingToNonWhitelist = lastActiveWindow && !whitelist.includes(lastActiveWindow);
+    // Extract just the app name for better matching
+    const currentAppName = extractAppName(lastActiveWindow);
+    const previousAppName = previousActiveWindow ? extractAppName(previousActiveWindow) : null;
     
-    if (isComingFromWhitelist && isGoingToNonWhitelist) {
-      console.log(`Switching from whitelisted app ${previousActiveWindow} to non-whitelisted app ${lastActiveWindow}`);
-      handleNonWhitelistedApp(lastActiveWindow);
+    // Check if the current app is in the whitelist (using more flexible matching)
+    const isCurrentAppWhitelisted = isAppInWhitelist(currentAppName, whitelist);
+    const isPreviousAppWhitelisted = previousAppName && isAppInWhitelist(previousAppName, whitelist);
+    
+    // Track if we've already shown a notification for this app transition
+    const notificationKey = `${previousAppName || ''}-to-${currentAppName}`;
+    const shouldShowNotification = notificationKey !== lastNotificationDismissed;
+
+    // Only show notification when switching FROM a whitelisted app TO a non-whitelisted app
+    // AND we haven't already shown a notification for this transition
+    if (isPreviousAppWhitelisted && !isCurrentAppWhitelisted && shouldShowNotification) {
+      console.log(`Switching from whitelisted app ${previousAppName} to non-whitelisted app ${currentAppName}`);
+      handleNonWhitelistedApp(currentAppName, notificationKey);
     }
-    // Skip empty app names
-    else if (lastActiveWindow.trim() === '') {
-      return;
-    }
-    // If not coming from whitelist but going to non-whitelist
-    else if (isGoingToNonWhitelist) {
-      console.log(`Switching to non-whitelisted app ${lastActiveWindow}`);
-      handleNonWhitelistedApp(lastActiveWindow);
-    }
-  }, [isFocusMode, lastActiveWindow, whitelist, previousActiveWindow]);
+  }, [isFocusMode, lastActiveWindow, whitelist, previousActiveWindow, lastNotificationDismissed]);
+  
+  // Extract the core app name from window title for more reliable matching
+  const extractAppName = (windowTitle: string): string => {
+    if (!windowTitle) return '';
+    
+    // Common patterns in window titles
+    const appNameMatches = windowTitle.match(/^(.*?)(?:\s[-–—]\s|\s\|\s|\s:|\s\d|$)/);
+    return appNameMatches?.[1]?.trim() || windowTitle.trim();
+  };
+  
+  // More flexible app matching against whitelist
+  const isAppInWhitelist = (appName: string, whitelist: string[]): boolean => {
+    if (!appName) return false;
+    
+    const normalizedAppName = appName.toLowerCase();
+    
+    return whitelist.some(whitelistedApp => {
+      const normalizedWhitelistedApp = whitelistedApp.toLowerCase();
+      return normalizedAppName.includes(normalizedWhitelistedApp) || 
+             normalizedWhitelistedApp.includes(normalizedAppName);
+    });
+  };
   
   const toggleFocusMode = useCallback(() => {
     const newState = !isFocusMode;
@@ -153,19 +184,27 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setDimInsteadOfBlock(prev => !prev);
   }, []);
   
-  const handleNonWhitelistedApp = useCallback((appName: string) => {
+  const handleNonWhitelistedApp = useCallback((appName: string, notificationKey: string) => {
     // Show notification using the centered toast
     centerToast({
       title: "Focus Alert",
       description: `You're outside your focus zone. ${appName} is not in your whitelist`,
       duration: 10000, // Show longer to ensure user sees it
+      onClose: () => {
+        // When user dismisses notification, remember it to avoid duplicate notifications
+        setLastNotificationDismissed(notificationKey);
+        // Also dispatch an event to let the system know this notification was dismissed
+        window.dispatchEvent(new CustomEvent('notification-dismissed', { detail: notificationKey }));
+      }
     });
     
-    // Also show notification to the system tray (as backup)
+    // In a real implementation, we'd avoid showing duplicate notifications
+    // Only send a single system notification
     if (window.electron) {
       window.electron.send('show-native-notification', {
         title: "Focus Mode Alert", 
-        body: `You're outside your focus zone. ${appName} is not in your whitelist`
+        body: `You're outside your focus zone. ${appName} is not in your whitelist`,
+        notificationId: notificationKey
       });
     }
     

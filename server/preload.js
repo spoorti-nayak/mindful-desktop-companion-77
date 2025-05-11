@@ -14,7 +14,8 @@ contextBridge.exposeInMainWorld('electron', {
       'show-native-notification',
       'toggle-focus-mode',
       'save-timer-settings',
-      'get-active-window' // Added channel to get active window
+      'get-active-window',
+      'notification-dismissed' // Added channel to track dismissed notifications
     ];
     
     if (validSendChannels.includes(channel)) {
@@ -31,7 +32,8 @@ contextBridge.exposeInMainWorld('electron', {
       'blink-detected',
       'eye-care-reminder',
       'focus-mode-changed',
-      'timer-settings-saved'
+      'timer-settings-saved',
+      'notification-dismissed'
     ];
     
     if (validReceiveChannels.includes(channel)) {
@@ -60,6 +62,16 @@ ipcRenderer.on('active-window-changed', (event, windowInfo) => {
   }));
   
   console.log('Dispatched active-window-changed event with title:', windowTitle);
+});
+
+// Listen for notification-dismissed from main and dispatch a custom event for the renderer
+ipcRenderer.on('notification-dismissed', (event, notificationId) => {
+  // Dispatch a custom event that our React components can listen to
+  window.dispatchEvent(new CustomEvent('notification-dismissed', { 
+    detail: notificationId 
+  }));
+  
+  console.log('Dispatched notification-dismissed event with ID:', notificationId);
 });
 
 console.log('Preload script loaded successfully');

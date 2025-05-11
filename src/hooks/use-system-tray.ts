@@ -31,13 +31,9 @@ export function useSystemTray() {
           duration: 8000, // Show longer for important focus notifications
         });
         
-        // Also send to electron for system-level notification
-        if (window.electron) {
-          window.electron.send('show-native-notification', {
-            title: "Focus Alert",
-            body: message
-          });
-        }
+        // We no longer need to send duplicate notifications to electron
+        // since they are now handled directly by the main process
+        // This prevents double notifications
       } else {
         // Use bottom-right toast for system notifications
         sonnerToast(message);
@@ -46,10 +42,22 @@ export function useSystemTray() {
     
     systemTray.addNotificationListener(notificationHandler);
     
+    // Listen for notification dismissed events
+    const handleNotificationDismissed = (e: Event) => {
+      const notificationId = (e as CustomEvent<string>).detail;
+      if (notificationId && window.electron) {
+        // Sync the dismissed state back to the main process
+        window.electron.send('notification-dismissed', notificationId);
+      }
+    };
+    
+    window.addEventListener('notification-dismissed', handleNotificationDismissed as EventListener);
+    
     return () => {
       // Cleanup
       systemTray.removeNotificationListener(notificationHandler);
       systemTray.hideTrayIcon();
+      window.removeEventListener('notification-dismissed', handleNotificationDismissed as EventListener);
     };
   }, [toast]);
   
