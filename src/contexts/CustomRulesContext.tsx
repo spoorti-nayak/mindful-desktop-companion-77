@@ -6,28 +6,22 @@ import { toast } from "sonner";
 export interface Rule {
   id: string;
   name: string;
-  triggerCondition: {
-    type: 'tabSwitches' | 'timeSpent' | 'appUsage';
+  condition: {
+    type: string;
     threshold: number;
-    timeframe: number; // in minutes
+    timeWindow: number;
   };
   action: {
-    type: 'popup';
+    type: string;
+    text: string;
     media?: {
-      type: 'image' | 'video' | 'text';
+      type: 'image' | 'video';
       content: string;
     };
-    text: string;
     autoDismiss: boolean;
     dismissTime?: number; // in seconds
   };
-  schedule?: {
-    active: boolean;
-    startTime?: string; // HH:MM format
-    endTime?: string; // HH:MM format
-    days?: number[]; // 0-6, where 0 is Sunday
-  };
-  enabled: boolean;
+  isActive: boolean;
 }
 
 interface CustomRulesContextType {
@@ -57,13 +51,6 @@ export const CustomRulesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (savedRules) {
       setRules(JSON.parse(savedRules));
     }
-    
-    // Set up the rules engine to monitor triggers
-    const ruleCheckInterval = setInterval(() => {
-      checkRuleTriggers();
-    }, 30000); // Check every 30 seconds
-    
-    return () => clearInterval(ruleCheckInterval);
   }, []);
   
   // Save rules whenever they change
@@ -74,7 +61,7 @@ export const CustomRulesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const addRule = (rule: Omit<Rule, 'id'>) => {
     const newRule: Rule = {
       ...rule,
-      id: Date.now().toString(),
+      id: `rule-${Date.now()}`,
     };
     
     setRules([...rules, newRule]);
@@ -95,81 +82,30 @@ export const CustomRulesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   
   const toggleRuleEnabled = (id: string) => {
     setRules(rules.map(rule => 
-      rule.id === id ? { ...rule, enabled: !rule.enabled } : rule
+      rule.id === id ? { ...rule, isActive: !rule.isActive } : rule
     ));
   };
   
-  const checkRuleTriggers = () => {
+  // Simplified rule checking logic - just based on app switching
+  useEffect(() => {
     const systemTray = SystemTrayService.getInstance();
     
-    // Only check enabled rules
-    const enabledRules = rules.filter(rule => rule.enabled);
-    
-    enabledRules.forEach(rule => {
-      // Check if rule should be active based on schedule
-      if (rule.schedule?.active && !isRuleActiveNow(rule)) {
-        return;
-      }
+    // Set up the monitoring for app switches
+    const checkRulesInterval = setInterval(() => {
+      if (rules.length === 0) return;
       
-      let isTriggered = false;
+      const recentSwitches = systemTray.getRecentSwitchCount();
       
-      switch (rule.triggerCondition.type) {
-        case 'tabSwitches':
-          const switchCount = systemTray.getRecentSwitchCount();
-          isTriggered = switchCount >= rule.triggerCondition.threshold;
-          break;
-          
-        case 'timeSpent':
-          // Convert minutes to milliseconds
-          const thresholdMs = rule.triggerCondition.threshold * 60000;
-          const screenTimeMs = systemTray.getScreenTime();
-          isTriggered = screenTimeMs >= thresholdMs;
-          break;
-          
-        case 'appUsage':
-          const appUsage = systemTray.getAppUsageData();
-          // Check if any distraction app has been used more than threshold
-          const distractionApps = appUsage.filter(app => app.type === 'distraction');
-          const exceededApp = distractionApps.find(app => 
-            app.time >= (rule.triggerCondition.threshold * 60000)
-          );
-          isTriggered = !!exceededApp;
-          break;
-      }
-      
-      if (isTriggered) {
-        triggerRuleAction(rule);
-      }
-    });
-  };
-  
-  const isRuleActiveNow = (rule: Rule): boolean => {
-    if (!rule.schedule || !rule.schedule.active) return true;
+      // Check if any rule should be triggered
+      rules.forEach(rule => {
+        if (rule.isActive && recentSwitches > 3) {
+          triggerRuleAction(rule);
+        }
+      });
+    }, 30000); // Check every 30 seconds
     
-    const now = new Date();
-    const currentDay = now.getDay();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    
-    // Check if today is in active days
-    if (rule.schedule.days && !rule.schedule.days.includes(currentDay)) {
-      return false;
-    }
-    
-    // Check if current time is within active hours
-    if (rule.schedule.startTime && rule.schedule.endTime) {
-      const [startHour, startMinute] = rule.schedule.startTime.split(':').map(Number);
-      const [endHour, endMinute] = rule.schedule.endTime.split(':').map(Number);
-      
-      const currentTimeValue = currentHour * 60 + currentMinute;
-      const startTimeValue = startHour * 60 + startMinute;
-      const endTimeValue = endHour * 60 + endMinute;
-      
-      return currentTimeValue >= startTimeValue && currentTimeValue <= endTimeValue;
-    }
-    
-    return true;
-  };
+    return () => clearInterval(checkRulesInterval);
+  }, [rules]);
   
   const triggerRuleAction = (rule: Rule) => {
     if (rule.action.type === 'popup') {

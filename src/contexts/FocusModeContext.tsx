@@ -50,17 +50,24 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     }
     
-    // Register for active window change events
-    const systemTray = SystemTrayService.getInstance();
-    const unsubscribe = systemTray.receive('active-window-changed', (appName: string) => {
-      setLastActiveWindow(appName);
-    });
+    // Register for active window change events using addEventListener instead of receive
+    if (window.electron) {
+      const handleActiveWindowChanged = (event: CustomEvent<string>) => {
+        setLastActiveWindow(event.detail);
+      };
+      
+      // Use standard event listener since we can't directly use the receive method
+      window.addEventListener('active-window-changed', handleActiveWindowChanged as EventListener);
+      
+      // Request the current active window
+      window.electron.send('get-active-window');
+      
+      return () => {
+        window.removeEventListener('active-window-changed', handleActiveWindowChanged as EventListener);
+      };
+    }
     
-    return () => {
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
-    };
+    return undefined;
   }, []);
   
   // Save whitelist whenever it changes

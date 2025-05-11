@@ -49,4 +49,15 @@ contextBridge.exposeInMainWorld('electron', {
   }
 });
 
+// Listen for active-window-changed from main and dispatch a custom event for the renderer
+ipcRenderer.on('active-window-changed', (event, windowInfo) => {
+  // Extract the title from the window info or use the whole object
+  const windowTitle = windowInfo.title || windowInfo;
+  
+  // Dispatch a custom event that our React components can listen to
+  window.dispatchEvent(new CustomEvent('active-window-changed', { 
+    detail: windowTitle 
+  }));
+});
+
 console.log('Preload script loaded successfully');
