@@ -38,7 +38,9 @@ const Signup = () => {
     if (!validatePassword()) return;
     
     try {
+      // Ensure we're using the await correctly here and capturing the success value
       const success = await signup(name, email, password);
+      
       if (success) {
         toast.success(`Welcome, ${name}! Your account has been created.`);
         navigate("/dashboard");

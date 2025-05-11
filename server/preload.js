@@ -13,7 +13,8 @@ contextBridge.exposeInMainWorld('electron', {
       'set-tray-icon',
       'show-native-notification',
       'toggle-focus-mode',
-      'save-timer-settings'
+      'save-timer-settings',
+      'get-active-window' // Added channel to get active window
     ];
     
     if (validSendChannels.includes(channel)) {

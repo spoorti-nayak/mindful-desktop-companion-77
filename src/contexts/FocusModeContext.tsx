@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import SystemTrayService from '@/services/SystemTrayService';
 import { toast } from "sonner";
 
@@ -27,74 +27,113 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [whitelist, setWhitelist] = useState<string[]>([]);
   const [dimInsteadOfBlock, setDimInsteadOfBlock] = useState(true);
+  const [lastActiveWindow, setLastActiveWindow] = useState<string | null>(null);
   
+  // Load saved whitelist from localStorage on initial mount only
   useEffect(() => {
-    // Load saved whitelist from localStorage on component mount
     const savedWhitelist = localStorage.getItem('focusModeWhitelist');
     if (savedWhitelist) {
-      setWhitelist(JSON.parse(savedWhitelist));
+      try {
+        setWhitelist(JSON.parse(savedWhitelist));
+      } catch (e) {
+        console.error("Failed to parse whitelist:", e);
+        setWhitelist([]);
+      }
     }
     
     const savedDimOption = localStorage.getItem('focusModeDimOption');
     if (savedDimOption) {
-      setDimInsteadOfBlock(JSON.parse(savedDimOption) === true);
+      try {
+        setDimInsteadOfBlock(JSON.parse(savedDimOption) === true);
+      } catch (e) {
+        console.error("Failed to parse dim option:", e);
+      }
     }
     
-    // Set up a watcher for non-whitelisted apps when focus mode is active
-    if (isFocusMode) {
-      const systemTray = SystemTrayService.getInstance();
-      const monitoringInterval = setInterval(() => {
-        const lastActiveWindow = systemTray.getLastActiveWindow();
-        if (lastActiveWindow && !whitelist.includes(lastActiveWindow)) {
-          handleNonWhitelistedApp(lastActiveWindow);
-        }
-      }, 3000); // Check every 3 seconds
-      
-      return () => clearInterval(monitoringInterval);
-    }
-  }, [isFocusMode, whitelist]);
+    // Register for active window change events
+    const systemTray = SystemTrayService.getInstance();
+    const unsubscribe = systemTray.receive('active-window-changed', (appName: string) => {
+      setLastActiveWindow(appName);
+    });
+    
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
   
   // Save whitelist whenever it changes
   useEffect(() => {
-    localStorage.setItem('focusModeWhitelist', JSON.stringify(whitelist));
+    try {
+      localStorage.setItem('focusModeWhitelist', JSON.stringify(whitelist));
+    } catch (e) {
+      console.error("Failed to save whitelist:", e);
+    }
   }, [whitelist]);
   
   // Save dim option whenever it changes
   useEffect(() => {
-    localStorage.setItem('focusModeDimOption', JSON.stringify(dimInsteadOfBlock));
+    try {
+      localStorage.setItem('focusModeDimOption', JSON.stringify(dimInsteadOfBlock));
+    } catch (e) {
+      console.error("Failed to save dim option:", e);
+    }
   }, [dimInsteadOfBlock]);
   
-  const toggleFocusMode = () => {
+  // Monitor active window changes when focus mode is active
+  useEffect(() => {
+    if (!isFocusMode || !lastActiveWindow) return;
+    
+    // Skip empty app names and already whitelisted apps
+    if (lastActiveWindow.trim() === '' || whitelist.includes(lastActiveWindow)) {
+      return;
+    }
+    
+    handleNonWhitelistedApp(lastActiveWindow);
+  }, [isFocusMode, lastActiveWindow, whitelist]);
+  
+  const toggleFocusMode = useCallback(() => {
     const newState = !isFocusMode;
     setIsFocusMode(newState);
     
     // Notify user of mode change
     if (newState) {
+      // Send to electron main process to update tray icon
+      if (window.electron) {
+        window.electron.send('toggle-focus-mode', true);
+      }
+      
       toast.success("Focus Mode activated", {
         description: "You'll be notified when using non-whitelisted apps",
       });
     } else {
+      // Send to electron main process to update tray icon
+      if (window.electron) {
+        window.electron.send('toggle-focus-mode', false);
+      }
+      
       toast.info("Focus Mode deactivated");
     }
-  };
+  }, [isFocusMode]);
   
-  const addToWhitelist = (app: string) => {
-    if (!whitelist.includes(app)) {
-      setWhitelist([...whitelist, app]);
+  const addToWhitelist = useCallback((app: string) => {
+    if (!whitelist.includes(app) && app.trim() !== '') {
+      setWhitelist(prev => [...prev, app]);
       toast.success(`Added ${app} to whitelist`);
     }
-  };
+  }, [whitelist]);
   
-  const removeFromWhitelist = (app: string) => {
-    setWhitelist(whitelist.filter(item => item !== app));
+  const removeFromWhitelist = useCallback((app: string) => {
+    setWhitelist(prev => prev.filter(item => item !== app));
     toast.info(`Removed ${app} from whitelist`);
-  };
+  }, []);
   
-  const toggleDimOption = () => {
-    setDimInsteadOfBlock(!dimInsteadOfBlock);
-  };
+  const toggleDimOption = useCallback(() => {
+    setDimInsteadOfBlock(prev => !prev);
+  }, []);
   
-  const handleNonWhitelistedApp = (appName: string) => {
+  const handleNonWhitelistedApp = useCallback((appName: string) => {
     // Show notification to the user
     toast.warning("You're outside your focus zone", {
       description: `${appName} is not in your whitelist`,
@@ -110,14 +149,14 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         description: "Focus Mode is blocking this application"
       });
     }
-  };
+  }, [dimInsteadOfBlock]);
   
-  const applyDimEffect = () => {
+  const applyDimEffect = useCallback(() => {
     // In a real implementation with Electron, we would create an overlay
     // For this demo, we'll show a dimming overlay in the web UI
-    const dimOverlay = document.getElementById('focus-mode-dim-overlay');
+    const existingOverlay = document.getElementById('focus-mode-dim-overlay');
     
-    if (!dimOverlay) {
+    if (!existingOverlay) {
       const overlay = document.createElement('div');
       overlay.id = 'focus-mode-dim-overlay';
       overlay.style.position = 'fixed';
@@ -144,7 +183,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       }, 3000);
     }
-  };
+  }, []);
   
   const value = {
     isFocusMode,
