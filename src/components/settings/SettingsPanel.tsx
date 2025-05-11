@@ -22,6 +22,8 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast as sonnerToast } from "sonner";
+import { FocusModeSettings } from "./FocusModeSettings";
+import { CustomRulesSettings } from "./CustomRulesSettings";
 
 const timerSettingsSchema = z.object({
   pomodoroDuration: z.number().min(1).max(120),
@@ -81,10 +83,12 @@ export function SettingsPanel() {
 
   return (
     <Tabs defaultValue="general" className="w-full">
-      <TabsList className="grid w-full grid-cols-3">
+      <TabsList className="grid w-full grid-cols-5">
         <TabsTrigger value="general">General</TabsTrigger>
         <TabsTrigger value="notifications">Notifications</TabsTrigger>
         <TabsTrigger value="timers">Timer Settings</TabsTrigger>
+        <TabsTrigger value="focus-mode">Focus Mode</TabsTrigger>
+        <TabsTrigger value="custom-rules">Custom Rules</TabsTrigger>
       </TabsList>
       
       <TabsContent value="general">
@@ -329,6 +333,14 @@ export function SettingsPanel() {
             </Form>
           </CardContent>
         </Card>
+      </TabsContent>
+      
+      <TabsContent value="focus-mode">
+        <FocusModeSettings />
+      </TabsContent>
+      
+      <TabsContent value="custom-rules">
+        <CustomRulesSettings />
       </TabsContent>
     </Tabs>
   );

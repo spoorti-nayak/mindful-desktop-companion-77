@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TimerProvider } from "@/contexts/TimerContext";
+import { FocusModeProvider } from "@/contexts/FocusModeContext";
+import { CustomRulesProvider } from "@/contexts/CustomRulesContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ThemeProvider } from "next-themes";
 import Welcome from "./pages/Welcome";
@@ -16,6 +18,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import { useAuth } from "@/contexts/AuthContext";
+import { RichMediaPopup } from "./components/customRules/RichMediaPopup";
 
 const queryClient = new QueryClient();
 
@@ -43,40 +46,46 @@ const App = () => {
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <AuthProvider>
           <TimerProvider>
-            <TooltipProvider>
-              {/* Center toast for focus-related notifications */}
-              <Toaster />
-              {/* Bottom right toast for regular UI notifications */}
-              <Sonner position="bottom-right" />
-              <BrowserRouter>
-                <Routes>
-                  {/* Welcome/Landing Page */}
-                  <Route path="/welcome" element={<Welcome />} />
-                  
-                  {/* Auth Routes */}
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/signup" element={<Signup />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  
-                  {/* Protected Routes */}
-                  <Route 
-                    path="/dashboard" 
-                    element={
-                      <ProtectedRoute>
-                        <Index />
-                      </ProtectedRoute>
-                    } 
-                  />
-                  
-                  {/* Root path conditionally redirects based on auth state */}
-                  <Route path="/" element={<RootRedirect />} />
-                  
-                  {/* Catch-all route */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </BrowserRouter>
-            </TooltipProvider>
+            <FocusModeProvider>
+              <CustomRulesProvider>
+                <TooltipProvider>
+                  {/* Center toast for focus-related notifications */}
+                  <Toaster />
+                  {/* Bottom right toast for regular UI notifications */}
+                  <Sonner position="bottom-right" />
+                  {/* Rich media popups for custom rules */}
+                  <RichMediaPopup />
+                  <BrowserRouter>
+                    <Routes>
+                      {/* Welcome/Landing Page */}
+                      <Route path="/welcome" element={<Welcome />} />
+                      
+                      {/* Auth Routes */}
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/signup" element={<Signup />} />
+                      <Route path="/forgot-password" element={<ForgotPassword />} />
+                      <Route path="/reset-password" element={<ResetPassword />} />
+                      
+                      {/* Protected Routes */}
+                      <Route 
+                        path="/dashboard" 
+                        element={
+                          <ProtectedRoute>
+                            <Index />
+                          </ProtectedRoute>
+                        } 
+                      />
+                      
+                      {/* Root path conditionally redirects based on auth state */}
+                      <Route path="/" element={<RootRedirect />} />
+                      
+                      {/* Catch-all route */}
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </BrowserRouter>
+                </TooltipProvider>
+              </CustomRulesProvider>
+            </FocusModeProvider>
           </TimerProvider>
         </AuthProvider>
       </ThemeProvider>

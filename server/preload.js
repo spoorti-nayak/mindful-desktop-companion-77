@@ -11,7 +11,8 @@ contextBridge.exposeInMainWorld('electron', {
       'hide-tray', 
       'set-tray-tooltip', 
       'set-tray-icon',
-      'show-native-notification'
+      'show-native-notification',
+      'toggle-focus-mode'
     ];
     
     if (validSendChannels.includes(channel)) {
@@ -26,7 +27,8 @@ contextBridge.exposeInMainWorld('electron', {
     const validReceiveChannels = [
       'active-window-changed', 
       'blink-detected',
-      'eye-care-reminder'
+      'eye-care-reminder',
+      'focus-mode-changed'
     ];
     
     if (validReceiveChannels.includes(channel)) {

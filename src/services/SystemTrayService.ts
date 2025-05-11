@@ -1,3 +1,4 @@
+
 // This service handles system tray functionality and active window monitoring
 
 class SystemTrayService {
@@ -30,11 +31,25 @@ class SystemTrayService {
   private focusScore: number = 100;
   private distractionCount: number = 0;
   private focusScoreUpdateListeners: Array<(score: number, distractions: number) => void> = [];
+  
+  // Focus mode properties
+  private isFocusMode: boolean = false;
+  private focusModeWhitelist: string[] = [];
+  private dimInsteadOfBlock: boolean = true;
+  private focusModeListeners: Array<(isActive: boolean) => void> = [];
+  
+  // Recent window switch tracking for custom rules
+  private recentSwitches: number = 0;
+  private recentSwitchesTimer: NodeJS.Timeout | null = null;
+  
   private persistedData: {
     screenTimeToday: number,
     focusScore: number,
     distractionCount: number,
-    appUsageData: Array<{name: string, time: number, type: string, lastActiveTime: number}>
+    appUsageData: Array<{name: string, time: number, type: string, lastActiveTime: number}>,
+    focusModeWhitelist?: string[],
+    isFocusMode?: boolean,
+    dimInsteadOfBlock?: boolean
   } | null = null;
 
   private constructor() {
@@ -69,6 +84,9 @@ class SystemTrayService {
           type: data.type,
           lastActiveTime: data.lastActiveTime
         })),
+        focusModeWhitelist: this.focusModeWhitelist,
+        isFocusMode: this.isFocusMode,
+        dimInsteadOfBlock: this.dimInsteadOfBlock,
         timestamp: Date.now()
       };
       
@@ -96,6 +114,19 @@ class SystemTrayService {
         this.screenTimeToday = parsedData.screenTimeToday || 0;
         this.focusScore = parsedData.focusScore || 100;
         this.distractionCount = parsedData.distractionCount || 0;
+        
+        // Load focus mode settings
+        if (parsedData.focusModeWhitelist) {
+          this.focusModeWhitelist = parsedData.focusModeWhitelist;
+        }
+        
+        if (parsedData.isFocusMode !== undefined) {
+          this.isFocusMode = parsedData.isFocusMode;
+        }
+        
+        if (parsedData.dimInsteadOfBlock !== undefined) {
+          this.dimInsteadOfBlock = parsedData.dimInsteadOfBlock;
+        }
         
         // Restore app usage data
         if (parsedData.appUsageData && Array.isArray(parsedData.appUsageData)) {
@@ -155,6 +186,11 @@ class SystemTrayService {
       // Also persist data periodically to handle crashes
       setInterval(() => this.persistData(), 60000); // Every minute
     }
+    
+    // Initialize recent switches tracking for custom rules
+    setInterval(() => {
+      this.recentSwitches = 0; // Reset counter every 5 minutes
+    }, 300000);
   }
   
   // Setup daily reset at midnight
@@ -290,6 +326,11 @@ class SystemTrayService {
         appData.lastActiveTime = now;
         this.appUsageData.set(appName, appData);
       }
+    }
+    
+    // Check focus mode - if active and app is not whitelisted
+    if (this.isFocusMode && !this.focusModeWhitelist.includes(appName)) {
+      this.notifyFocusModeViolation(appName);
     }
     
     // Notify listeners
@@ -441,6 +482,9 @@ class SystemTrayService {
   private handleRealWindowSwitch(windowTitle: string): void {
     console.log(`Real active window changed to: ${windowTitle}`);
     this.handleWindowSwitch(windowTitle);
+    
+    // Increment recent switch count for custom rules
+    this.recentSwitches++;
   }
 
   // Handle window switch 
@@ -511,6 +555,29 @@ class SystemTrayService {
         title: "Focus Reminder", 
         body: message
       });
+    }
+    
+    this.listeners.forEach(listener => listener(message, true));
+  }
+  
+  private notifyFocusModeViolation(appName: string): void {
+    const message = `You're outside your focus zone. ${appName} is not in your whitelist.`;
+    
+    if (this.isDesktopApp && window.electron) {
+      console.log("Sending focus mode violation notification via IPC");
+      window.electron.send('show-native-notification', {
+        title: "Focus Mode Alert", 
+        body: message
+      });
+    }
+    
+    // Apply dimming effect if that option is selected
+    if (this.dimInsteadOfBlock) {
+      // In a real implementation, we would dim the screen via Electron
+      console.log("Applying dimming effect to screen");
+    } else {
+      // In a real implementation, we would block the app via Electron
+      console.log("Blocking non-whitelisted app:", appName);
     }
     
     this.listeners.forEach(listener => listener(message, true));
@@ -656,6 +723,82 @@ class SystemTrayService {
   // Get current distraction count
   public getDistractionCount(): number {
     return this.distractionCount;
+  }
+  
+  // Get the last active window
+  public getLastActiveWindow(): string | null {
+    return this.lastActiveWindow;
+  }
+  
+  // Get recent window switch count (for custom rules)
+  public getRecentSwitchCount(): number {
+    return this.recentSwitches;
+  }
+  
+  // Get app usage data for custom rules
+  public getAppUsageData(): Array<{name: string, time: number, type: string}> {
+    return Array.from(this.appUsageData.entries()).map(([name, data]) => ({
+      name,
+      time: data.time,
+      type: data.type
+    }));
+  }
+  
+  // Focus Mode methods
+  public setFocusMode(active: boolean): void {
+    this.isFocusMode = active;
+    this.notifyFocusModeListeners();
+    this.persistData();
+    
+    console.log(`Focus Mode ${active ? 'activated' : 'deactivated'}`);
+    
+    // Update tray icon and menu
+    if (this.isDesktopApp && window.electron) {
+      // In a real implementation, this would update the tray menu
+      window.electron.send('set-tray-tooltip', 
+        `Mindful Desktop Companion ${active ? '(Focus Mode)' : ''}`
+      );
+    }
+  }
+  
+  public getFocusMode(): boolean {
+    return this.isFocusMode;
+  }
+  
+  public setFocusModeWhitelist(whitelist: string[]): void {
+    this.focusModeWhitelist = whitelist;
+    this.persistData();
+  }
+  
+  public getFocusModeWhitelist(): string[] {
+    return this.focusModeWhitelist;
+  }
+  
+  public setDimOption(dimInsteadOfBlock: boolean): void {
+    this.dimInsteadOfBlock = dimInsteadOfBlock;
+    this.persistData();
+  }
+  
+  public getDimOption(): boolean {
+    return this.dimInsteadOfBlock;
+  }
+  
+  public addFocusModeListener(callback: (isActive: boolean) => void): void {
+    this.focusModeListeners.push(callback);
+    callback(this.isFocusMode);
+  }
+  
+  public removeFocusModeListener(callback: (isActive: boolean) => void): void {
+    const index = this.focusModeListeners.indexOf(callback);
+    if (index > -1) {
+      this.focusModeListeners.splice(index, 1);
+    }
+  }
+  
+  private notifyFocusModeListeners(): void {
+    this.focusModeListeners.forEach(listener => {
+      listener(this.isFocusMode);
+    });
   }
 }
 

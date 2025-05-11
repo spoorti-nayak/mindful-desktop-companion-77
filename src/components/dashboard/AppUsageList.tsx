@@ -5,6 +5,9 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import SystemTrayService from "@/services/SystemTrayService";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useFocusMode } from "@/contexts/FocusModeContext";
+import { Badge } from "@/components/ui/badge";
+import { Shield } from "lucide-react";
 
 interface AppUsageItem {
   name: string;
@@ -21,6 +24,7 @@ export function AppUsageList({ className }: AppUsageListProps) {
   const [appUsageData, setAppUsageData] = useState<AppUsageItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
+  const { isFocusMode, whitelist } = useFocusMode();
   
   useEffect(() => {
     const systemTray = SystemTrayService.getInstance();
@@ -88,10 +92,20 @@ export function AppUsageList({ className }: AppUsageListProps) {
     }
   };
 
+  const isAppWhitelisted = (appName: string): boolean => {
+    return whitelist.includes(appName);
+  };
+
   return (
     <Card className={className}>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>App Usage Today</CardTitle>
+        {isFocusMode && (
+          <Badge className="bg-attention-blue-400 text-white">
+            <Shield className="h-3 w-3 mr-1" />
+            Focus Mode
+          </Badge>
+        )}
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -109,7 +123,10 @@ export function AppUsageList({ className }: AppUsageListProps) {
               {appUsageData.map((app) => (
                 <div
                   key={app.name}
-                  className="flex items-center justify-between rounded-lg border p-3"
+                  className={cn(
+                    "flex items-center justify-between rounded-lg border p-3",
+                    isFocusMode && !isAppWhitelisted(app.name) && "bg-secondary/20 border-dashed"
+                  )}
                 >
                   <div className="flex items-center space-x-3">
                     <div
@@ -120,7 +137,19 @@ export function AppUsageList({ className }: AppUsageListProps) {
                         app.type === "communication" && "bg-attention-blue-400"
                       )}
                     ></div>
-                    <span>{app.name}</span>
+                    <div className="flex items-center">
+                      <span>{app.name}</span>
+                      {isFocusMode && isAppWhitelisted(app.name) && (
+                        <Badge variant="outline" className="ml-2 text-xs border-green-500 text-green-500">
+                          Allowed
+                        </Badge>
+                      )}
+                      {isFocusMode && !isAppWhitelisted(app.name) && (
+                        <Badge variant="outline" className="ml-2 text-xs border-red-500 text-red-500">
+                          Blocked
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="text-sm font-medium">{formatTime(app.time)}</div>
                 </div>

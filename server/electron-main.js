@@ -17,6 +17,7 @@ let isMonitoring = true;
 let isAppQuitting = false;
 let lastActiveWindow = null;
 let lastActiveWindowTime = Date.now();
+let isFocusMode = false;
 
 async function createWindow() {
   try {
@@ -142,6 +143,10 @@ function updateTrayMenu() {
         click: toggleMonitoring 
       },
       { 
+        label: isFocusMode ? 'Disable Focus Mode' : 'Enable Focus Mode', 
+        click: toggleFocusMode 
+      },
+      { 
         label: 'Show Test Notification', 
         click: () => showNotification("Test", "This is a test notification") 
       },
@@ -254,6 +259,24 @@ function toggleMonitoring() {
   updateTrayMenu();
 }
 
+function toggleFocusMode() {
+  isFocusMode = !isFocusMode;
+  
+  // Update the tray menu to reflect the new state
+  updateTrayMenu();
+  
+  // Notify the renderer process about the focus mode change
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('focus-mode-changed', isFocusMode);
+  }
+  
+  // Show notification
+  showNotification(
+    isFocusMode ? "Focus Mode Enabled" : "Focus Mode Disabled", 
+    isFocusMode ? "You'll only have access to whitelisted apps" : "You now have access to all applications"
+  );
+}
+
 // Function to show center-screen notifications
 function showNotification(title, body) {
   try {
@@ -359,6 +382,13 @@ ipcMain.on('set-tray-icon', (event, iconType) => {
 ipcMain.on('show-native-notification', (event, {title, body}) => {
   console.log(`IPC notification received: ${title} - ${body}`);
   showNotification(title, body);
+});
+
+// Add handler for focus mode toggle from renderer
+ipcMain.on('toggle-focus-mode', (event, enableFocusMode) => {
+  isFocusMode = enableFocusMode;
+  updateTrayMenu();
+  console.log(`Focus mode ${isFocusMode ? 'enabled' : 'disabled'} from renderer`);
 });
 
 app.whenReady().then(createWindow);
