@@ -58,7 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check if user is logged in on mount
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Failed to parse stored user:", error);
+        localStorage.removeItem("user");
+      }
     }
     setIsLoading(false);
   }, []);
@@ -66,10 +71,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
+      console.log(`Attempting login for email: ${email}`);
+      
       // Check if this is a registered user in our demo environment
-      const demoUser = registeredUsers.find(u => u.email === email && u.password === password);
+      const demoUser = registeredUsers.find(u => 
+        u.email.toLowerCase() === email.toLowerCase() && 
+        u.password === password
+      );
       
       if (demoUser) {
+        console.log("Demo user found, logging in");
         const userData = {
           id: demoUser.id,
           name: demoUser.name,
@@ -84,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Try to authenticate with the backend if not in preview mode
       try {
+        console.log("No demo user found, trying backend");
         const response = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
           headers: {
@@ -105,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true;
       } catch (error) {
         console.error("Backend login error:", error);
-        sonnerToast.error("Invalid email or password");
+        sonnerToast.error("Unable to connect to server, please try again");
         return false;
       }
     } catch (error) {
@@ -120,8 +132,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = async (name: string, email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      // Check if email is already used
-      const existingUser = registeredUsers.find(u => u.email === email);
+      console.log(`Attempting signup for email: ${email}`);
+      
+      // Check if email is already used (case insensitive check)
+      const existingUser = registeredUsers.find(u => 
+        u.email.toLowerCase() === email.toLowerCase()
+      );
+      
       if (existingUser) {
         sonnerToast.error("Signup failed: Email already in use");
         return false;
@@ -134,9 +151,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email,
         password // Store password for demo mode only
       };
-      
-      // Add to registered users
-      setRegisteredUsers(prev => [...prev, newUser]);
       
       // Try to sign up with backend if not in preview mode
       try {
@@ -151,8 +165,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
 
         if (!response.ok || !data.success) {
-          sonnerToast.error(`Signup failed: ${data.message || 'An error occurred'}`);
-          return false;
+          // If backend fails, add to registered users anyway (for demo mode)
+          setRegisteredUsers(prev => [...prev, newUser]);
+          
+          const userData = {
+            id: newUser.id,
+            name: newUser.name,
+            email: newUser.email
+          };
+          
+          setUser(userData);
+          localStorage.setItem("user", JSON.stringify(userData));
+          sonnerToast.success(`Welcome, ${name}!`);
+          return true;
         }
 
         const userData = {
@@ -170,6 +195,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sonnerToast.info("Using preview mode: Account created locally");
         
         // If backend fails, use the local user
+        // Add to registered users
+        setRegisteredUsers(prev => [...prev, newUser]);
+        
         const userData = {
           id: newUser.id,
           name: newUser.name,
