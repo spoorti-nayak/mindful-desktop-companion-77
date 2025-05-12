@@ -5,12 +5,14 @@ import { useToast } from '@/hooks/use-toast';
 import { toast as sonnerToast } from 'sonner';
 import { useTimer } from '@/contexts/TimerContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useFocusMode } from '@/contexts/FocusModeContext';
 
 export function useSystemTray() {
   const [isTrayActive, setIsTrayActive] = useState(false);
   const { toast } = useToast();
   const auth = useAuth();
   const user = auth?.user;
+  const { isFocusMode, whitelist } = useFocusMode();
 
   // Initialize system tray
   useEffect(() => {
@@ -73,6 +75,16 @@ export function useSystemTray() {
         });
     }
   }, [user]);
+
+  // Sync focus mode settings with system tray service
+  useEffect(() => {
+    const systemTray = SystemTrayService.getInstance();
+    
+    // Update focus mode settings in SystemTrayService
+    systemTray.setFocusMode(isFocusMode);
+    systemTray.setFocusModeWhitelist(whitelist);
+    
+  }, [isFocusMode, whitelist]);
   
   return { isTrayActive };
 }

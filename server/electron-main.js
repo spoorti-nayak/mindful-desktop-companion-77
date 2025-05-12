@@ -19,6 +19,7 @@ let lastActiveWindow = null;
 let lastActiveWindowTime = Date.now();
 let isFocusMode = false;
 let notificationWindow = null;
+let lastProcessedNotificationId = null;
 
 async function createWindow() {
   try {
@@ -319,9 +320,20 @@ function toggleFocusMode() {
 }
 
 // Function to show center-screen notifications
-function showNotification(title, body) {
+function showNotification(title, body, notificationId = null) {
   try {
     console.log(`Showing notification: ${title} - ${body}`);
+    
+    // Check if we've already processed this notification ID to prevent duplicates
+    if (notificationId && notificationId === lastProcessedNotificationId) {
+      console.log(`Skipping duplicate notification with ID: ${notificationId}`);
+      return;
+    }
+    
+    // Update the last processed notification ID
+    if (notificationId) {
+      lastProcessedNotificationId = notificationId;
+    }
     
     // Ensure the notification window exists
     if (!notificationWindow || notificationWindow.isDestroyed()) {
@@ -334,9 +346,10 @@ function showNotification(title, body) {
     
     // Center the notification window
     if (notificationWindow) {
+      // Position notification at the top center of the active window's screen
       notificationWindow.setPosition(
         Math.floor((width - 420) / 2),
-        Math.floor((height - 150) / 2)
+        Math.floor((height - 150) / 5) // Position more towards the top for better visibility
       );
       
       // Create HTML content for the notification
@@ -348,7 +361,7 @@ function showNotification(title, body) {
               margin: 0;
               padding: 0;
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-              background-color: rgba(0, 0, 0, 0.7);
+              background-color: rgba(0, 0, 0, 0.85);
               border-radius: 8px;
               overflow: hidden;
               color: white;
@@ -357,6 +370,7 @@ function showNotification(title, body) {
               height: 100vh;
               box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
               animation: fadeIn 0.3s ease-in;
+              border: 1px solid rgba(255, 255, 255, 0.1);
             }
             .content {
               padding: 16px;
@@ -366,6 +380,7 @@ function showNotification(title, body) {
               font-size: 18px;
               font-weight: bold;
               margin-bottom: 8px;
+              color: #FF9500;
             }
             .body {
               font-size: 14px;
@@ -392,26 +407,40 @@ function showNotification(title, body) {
               from { opacity: 0; transform: scale(0.95); }
               to { opacity: 1; transform: scale(1); }
             }
+            .notification-id {
+              display: none;
+            }
           </style>
         </head>
         <body>
           <div class="content">
             <div class="title">${title}</div>
             <div class="body">${body}</div>
+            <div class="notification-id">${notificationId || ''}</div>
           </div>
           <div class="button-container">
-            <button class="close-button" onclick="window.close()">Dismiss</button>
+            <button class="close-button" onclick="closeNotification()">Dismiss</button>
           </div>
           <script>
             // Auto-close after 8 seconds
-            setTimeout(() => {
-              window.close();
+            const autoCloseTimeout = setTimeout(() => {
+              closeNotification();
             }, 8000);
+            
+            function closeNotification() {
+              clearTimeout(autoCloseTimeout);
+              // Send notification ID back to main process when dismissed
+              const notificationId = document.querySelector('.notification-id').textContent;
+              if (notificationId) {
+                window.electron.send('notification-dismissed', notificationId);
+              }
+              window.close();
+            }
             
             // Allow clicking anywhere to close
             document.body.addEventListener('click', (e) => {
               if (!e.target.classList.contains('close-button')) {
-                window.close();
+                closeNotification();
               }
             });
           </script>
@@ -442,6 +471,16 @@ function showNotification(title, body) {
           if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.show();
             mainWindow.focus();
+          }
+        });
+        
+        // Handle notification close
+        notification.on('close', () => {
+          if (notificationId) {
+            // Notify renderer process that notification was dismissed
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('notification-dismissed', notificationId);
+            }
           }
         });
       }
@@ -509,9 +548,22 @@ ipcMain.on('set-tray-icon', (event, iconType) => {
 });
 
 // Add handler for native notifications
-ipcMain.on('show-native-notification', (event, {title, body}) => {
+ipcMain.on('show-native-notification', (event, {title, body, notificationId}) => {
   console.log(`IPC notification received: ${title} - ${body}`);
-  showNotification(title, body);
+  showNotification(title, body, notificationId);
+});
+
+// Add handler for dismissing notifications
+ipcMain.on('notification-dismissed', (event, notificationId) => {
+  console.log(`Notification dismissed: ${notificationId}`);
+  
+  // Forward the dismissal to the renderer process
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('notification-dismissed', notificationId);
+  }
+  
+  // Update last processed notification ID to avoid reshowing
+  lastProcessedNotificationId = notificationId;
 });
 
 // Add handler for focus mode toggle from renderer

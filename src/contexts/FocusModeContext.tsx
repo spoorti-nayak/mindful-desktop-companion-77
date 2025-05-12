@@ -185,7 +185,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
   
   const handleNonWhitelistedApp = useCallback((appName: string, notificationKey: string) => {
-    // Show notification using the centered toast
+    // Show notification using the centered toast - this will appear in the web app
     centerToast({
       title: "Focus Alert",
       description: `You're outside your focus zone. ${appName} is not in your whitelist`,
@@ -198,8 +198,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     });
     
-    // In a real implementation, we'd avoid showing duplicate notifications
-    // Only send a single system notification
+    // IMPORTANT: This is a system-level notification that will appear regardless of what app is in focus
     if (window.electron) {
       window.electron.send('show-native-notification', {
         title: "Focus Mode Alert", 
