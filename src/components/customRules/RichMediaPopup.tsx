@@ -13,12 +13,12 @@ export function RichMediaPopup() {
   const [displayType, setDisplayType] = useState<'dialog' | 'alert' | 'popover'>('dialog');
   
   useEffect(() => {
+    // Original handler for rule-based popups
     const handleShowPopup = (event: CustomEvent<Rule>) => {
       console.log("Received show-custom-rule-popup event", event.detail);
       setCurrentRule(event.detail);
       
       // Choose display type based on rule condition or action
-      // For focus related rules, use alert dialog to ensure visibility
       if (
         event.detail.condition.type === "app_switch" || 
         event.detail.name.toLowerCase().includes("focus")
@@ -46,18 +46,85 @@ export function RichMediaPopup() {
         }, event.detail.action.dismissTime * 1000);
       }
     };
+
+    // New handler for focus mode popups (from main process)
+    const handleShowFocusPopup = (event: CustomEvent<{
+      title: string;
+      body: string;
+      notificationId: string;
+      mediaType: 'image' | 'video';
+      mediaContent: string;
+    }>) => {
+      console.log("Received show-focus-popup event", event.detail);
+      
+      // Create a synthetic rule object to reuse the same popup system
+      const focusRule: Rule = {
+        id: event.detail.notificationId,
+        name: event.detail.title,
+        condition: {
+          type: "app_switch",
+          params: {}
+        },
+        action: {
+          type: "notification",
+          text: event.detail.body,
+          media: {
+            type: event.detail.mediaType,
+            content: event.detail.mediaContent
+          },
+          autoDismiss: true,
+          dismissTime: 8
+        },
+        isActive: true
+      };
+      
+      setCurrentRule(focusRule);
+      setDisplayType('alert'); // Always use alert dialog for focus popups for maximum visibility
+      setIsOpen(true);
+      
+      // Auto-dismiss after 8 seconds
+      setTimeout(() => {
+        setIsOpen(false);
+      }, 8000);
+    };
     
-    // Add event listener
+    // Add event listeners
     window.addEventListener('show-custom-rule-popup', 
       handleShowPopup as EventListener
+    );
+    
+    window.addEventListener('show-focus-popup', 
+      handleShowFocusPopup as EventListener
     );
     
     return () => {
       window.removeEventListener('show-custom-rule-popup', 
         handleShowPopup as EventListener
       );
+      window.removeEventListener('show-focus-popup', 
+        handleShowFocusPopup as EventListener
+      );
     };
   }, []);
+  
+  // Handler for notification dismissed events
+  useEffect(() => {
+    const handleNotificationDismissed = (event: CustomEvent<string>) => {
+      if (currentRule && event.detail === currentRule.id) {
+        setIsOpen(false);
+      }
+    };
+    
+    window.addEventListener('notification-dismissed', 
+      handleNotificationDismissed as EventListener
+    );
+    
+    return () => {
+      window.removeEventListener('notification-dismissed', 
+        handleNotificationDismissed as EventListener
+      );
+    };
+  }, [currentRule]);
   
   if (!currentRule) return null;
   

@@ -1,4 +1,3 @@
-
 const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, Notification, screen } = require('electron');
 const path = require('path');
 const activeWin = require('active-win'); // Updated from get-windows
@@ -19,6 +18,7 @@ let lastActiveWindow = null;
 let lastActiveWindowTime = Date.now();
 let isFocusMode = false;
 let notificationWindow = null;
+let focusPopupWindow = null;
 let lastProcessedNotificationId = null;
 
 async function createWindow() {
@@ -93,8 +93,12 @@ async function createWindow() {
     // Create a hidden notification window that will be used to display notifications on top
     createNotificationWindow();
     
+    // Create a hidden focus popup window for rich media popups
+    createFocusPopupWindow();
+    
     // Test notification on startup
     setTimeout(() => {
+      console.log("Sending test notification");
       showNotification("App Started", "Mindful Desktop Companion is now running.");
     }, 2000);
   } catch (error) {
@@ -138,6 +142,43 @@ function createNotificationWindow() {
   });
   
   console.log("Notification window created");
+}
+
+function createFocusPopupWindow() {
+  // Get primary display size for positioning
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+  
+  // Create a larger always-on-top window for rich media popups
+  focusPopupWindow = new BrowserWindow({
+    width: 500,
+    height: 400,
+    x: Math.floor((width - 500) / 2),
+    y: Math.floor((height - 400) / 2),
+    frame: false,
+    transparent: true,
+    resizable: false,
+    skipTaskbar: true,
+    show: false,
+    alwaysOnTop: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
+    }
+  });
+  
+  // Load a blank HTML
+  focusPopupWindow.loadURL('data:text/html;charset=utf-8,<html><body style="background: transparent;"></body></html>');
+  
+  // Hide the window when it loses focus (user clicks away)
+  focusPopupWindow.on('blur', () => {
+    if (focusPopupWindow && !focusPopupWindow.isDestroyed()) {
+      focusPopupWindow.hide();
+    }
+  });
+  
+  console.log("Focus popup window created");
 }
 
 function createTray() {
@@ -319,6 +360,225 @@ function toggleFocusMode() {
   );
 }
 
+// Enhanced function to show rich media popups for focus mode
+function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaContent = '') {
+  try {
+    console.log(`Showing focus popup: ${title} - ${body}`);
+    
+    // Check if we've already processed this notification ID to prevent duplicates
+    if (notificationId && notificationId === lastProcessedNotificationId) {
+      console.log(`Skipping duplicate notification with ID: ${notificationId}`);
+      return;
+    }
+    
+    // Update the last processed notification ID
+    if (notificationId) {
+      lastProcessedNotificationId = notificationId;
+    }
+    
+    // Ensure the focus popup window exists
+    if (!focusPopupWindow || focusPopupWindow.isDestroyed()) {
+      createFocusPopupWindow();
+    }
+    
+    // Get the primary display dimensions for exact center positioning
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.workAreaSize;
+    
+    // Center the popup window
+    if (focusPopupWindow) {
+      // Position popup at the center of the screen
+      focusPopupWindow.setPosition(
+        Math.floor((width - 500) / 2),
+        Math.floor((height - 400) / 2)
+      );
+      
+      // Determine media HTML content
+      let mediaHtml = '';
+      if (mediaType === 'image' && mediaContent) {
+        mediaHtml = `
+          <div class="media-container">
+            <img src="${mediaContent}" alt="Focus reminder" class="media-content"/>
+          </div>
+        `;
+      } else if (mediaType === 'video' && mediaContent) {
+        mediaHtml = `
+          <div class="media-container">
+            <video src="${mediaContent}" autoplay loop muted class="media-content"></video>
+          </div>
+        `;
+      }
+      
+      // Create HTML content for the rich media popup
+      const popupContent = `
+        <html>
+        <head>
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+              background-color: rgba(0, 0, 0, 0.85);
+              border-radius: 12px;
+              overflow: hidden;
+              color: white;
+              display: flex;
+              flex-direction: column;
+              height: 100vh;
+              box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+              animation: fadeIn 0.3s ease-in;
+              border: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            .media-container {
+              width: 100%;
+              height: 220px;
+              overflow: hidden;
+              position: relative;
+              background-color: rgba(0, 0, 0, 0.2);
+            }
+            .media-content {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              animation: zoomIn 8s ease-in-out infinite alternate;
+            }
+            .content {
+              padding: 24px;
+              flex: 1;
+            }
+            .title {
+              font-size: 24px;
+              font-weight: bold;
+              margin-bottom: 12px;
+              color: #FF9500;
+              animation: slideDown 0.5s ease-out;
+            }
+            .body {
+              font-size: 16px;
+              opacity: 0.9;
+              line-height: 1.5;
+              animation: fadeIn 0.8s ease-out;
+            }
+            .button-container {
+              display: flex;
+              justify-content: flex-end;
+              padding: 16px 24px 24px;
+            }
+            .close-button {
+              background: rgba(255, 255, 255, 0.2);
+              border: none;
+              color: white;
+              padding: 10px 16px;
+              border-radius: 6px;
+              cursor: pointer;
+              font-size: 14px;
+              font-weight: 500;
+              transition: background 0.2s;
+            }
+            .close-button:hover {
+              background: rgba(255, 255, 255, 0.3);
+            }
+            .notification-id {
+              display: none;
+            }
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+            @keyframes slideDown {
+              from { transform: translateY(-10px); opacity: 0; }
+              to { transform: translateY(0); opacity: 1; }
+            }
+            @keyframes zoomIn {
+              from { transform: scale(1); }
+              to { transform: scale(1.1); }
+            }
+          </style>
+        </head>
+        <body>
+          ${mediaHtml}
+          <div class="content">
+            <div class="title">${title}</div>
+            <div class="body">${body}</div>
+            <div class="notification-id">${notificationId || ''}</div>
+          </div>
+          <div class="button-container">
+            <button class="close-button" onclick="closeNotification()">Dismiss</button>
+          </div>
+          <script>
+            // Auto-close after 8 seconds
+            const autoCloseTimeout = setTimeout(() => {
+              closeNotification();
+            }, 8000);
+            
+            function closeNotification() {
+              clearTimeout(autoCloseTimeout);
+              // Send notification ID back to main process when dismissed
+              const notificationId = document.querySelector('.notification-id').textContent;
+              if (notificationId && window.electron) {
+                window.electron.send('notification-dismissed', notificationId);
+              }
+              window.close();
+            }
+            
+            // Allow clicking anywhere to close
+            document.body.addEventListener('click', (e) => {
+              if (!e.target.classList.contains('close-button')) {
+                closeNotification();
+              }
+            });
+          </script>
+        </body>
+        </html>
+      `;
+      
+      // Load the popup content
+      focusPopupWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(popupContent)}`);
+      
+      // Show the popup window
+      focusPopupWindow.show();
+      focusPopupWindow.focus();
+      
+      // Also send as a native notification (as fallback)
+      if (Notification.isSupported()) {
+        const notification = new Notification({
+          title: title,
+          body: body,
+          icon: path.join(__dirname, 'assets', 'icon.png'),
+          silent: false,
+        });
+        
+        notification.show();
+        
+        // Handle notification click - show main app window
+        notification.on('click', () => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.show();
+            mainWindow.focus();
+          }
+        });
+        
+        // Handle notification close
+        notification.on('close', () => {
+          if (notificationId) {
+            // Notify renderer process that notification was dismissed
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('notification-dismissed', notificationId);
+            }
+          }
+        });
+      }
+      
+      console.log("Focus popup shown on top of all windows");
+    }
+  } catch (error) {
+    console.error("Error showing focus popup:", error);
+    
+    // Fallback to basic notification if error occurs
+    showNotification(title, body, notificationId);
+  }
+}
+
 // Function to show center-screen notifications
 function showNotification(title, body, notificationId = null) {
   try {
@@ -403,12 +663,12 @@ function showNotification(title, body, notificationId = null) {
             .close-button:hover {
               background: rgba(255, 255, 255, 0.3);
             }
+            .notification-id {
+              display: none;
+            }
             @keyframes fadeIn {
               from { opacity: 0; transform: scale(0.95); }
               to { opacity: 1; transform: scale(1); }
-            }
-            .notification-id {
-              display: none;
             }
           </style>
         </head>
@@ -573,6 +833,12 @@ ipcMain.on('toggle-focus-mode', (event, enableFocusMode) => {
   console.log(`Focus mode ${isFocusMode ? 'enabled' : 'disabled'} from renderer`);
 });
 
+// Add handler for focus mode popups (rich media)
+ipcMain.on('show-focus-popup', (event, {title, body, notificationId, mediaType = 'image', mediaContent = ''}) => {
+  console.log(`IPC focus popup received: ${title} - ${body}`);
+  showFocusPopup(title, body, notificationId, mediaType, mediaContent);
+});
+
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
@@ -606,6 +872,11 @@ app.on('before-quit', () => {
   // Clean up the notification window
   if (notificationWindow && !notificationWindow.isDestroyed()) {
     notificationWindow.destroy();
+  }
+  
+  // Clean up the focus popup window
+  if (focusPopupWindow && !focusPopupWindow.isDestroyed()) {
+    focusPopupWindow.destroy();
   }
 });
 

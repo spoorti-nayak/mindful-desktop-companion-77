@@ -25,10 +25,13 @@ export function FocusModeAlert({ appName, onDismiss }: FocusModeAlertProps) {
   // Tell the main process to show native notification when this component mounts
   useEffect(() => {
     if (window.electron) {
-      window.electron.send('show-native-notification', {
+      // Send event to display system overlay popup instead of just a native notification
+      window.electron.send('show-focus-popup', {
         title: "Focus Mode Alert", 
         body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
-        notificationId: `focus-alert-${appName}`
+        notificationId: `focus-alert-${appName}`,
+        mediaType: 'image',
+        mediaContent: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6'
       });
     }
   }, [appName]);
