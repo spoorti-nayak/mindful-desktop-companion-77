@@ -22,6 +22,17 @@ export function FocusModeAlert({ appName, onDismiss }: FocusModeAlertProps) {
     return () => clearTimeout(timer);
   }, []);
   
+  // Tell the main process to show native notification when this component mounts
+  useEffect(() => {
+    if (window.electron) {
+      window.electron.send('show-native-notification', {
+        title: "Focus Mode Alert", 
+        body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
+        notificationId: `focus-alert-${appName}`
+      });
+    }
+  }, [appName]);
+  
   const handleDismiss = () => {
     setIsVisible(false);
     // Delay actual dismissal to allow animation to complete
