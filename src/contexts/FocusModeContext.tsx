@@ -186,17 +186,24 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   
   const handleNonWhitelistedApp = useCallback((appName: string, notificationKey: string) => {
     // Show notification using the centered toast - this will appear in the web app
-    centerToast({
+    const { dismiss } = centerToast({
       title: "Focus Alert",
       description: `You're outside your focus zone. ${appName} is not in your whitelist`,
       duration: 10000, // Show longer to ensure user sees it
-      onClose: () => {
-        // When user dismisses notification, remember it to avoid duplicate notifications
-        setLastNotificationDismissed(notificationKey);
-        // Also dispatch an event to let the system know this notification was dismissed
-        window.dispatchEvent(new CustomEvent('notification-dismissed', { detail: notificationKey }));
-      }
     });
+
+    // Add an event handler for when the toast is dismissed
+    const handleDismiss = () => {
+      // When user dismisses notification, remember it to avoid duplicate notifications
+      setLastNotificationDismissed(notificationKey);
+      // Also dispatch an event to let the system know this notification was dismissed
+      window.dispatchEvent(new CustomEvent('notification-dismissed', { detail: notificationKey }));
+    };
+
+    // Add listener to handle toast dismissal
+    setTimeout(() => {
+      handleDismiss();
+    }, 10000);
     
     // IMPORTANT: This is a system-level notification that will appear regardless of what app is in focus
     if (window.electron) {
