@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import SystemTrayService from '@/services/SystemTrayService';
 import { toast } from "sonner";
@@ -35,6 +34,11 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [showingAlert, setShowingAlert] = useState(false);
   const [currentAlertApp, setCurrentAlertApp] = useState<string | null>(null);
   const { toast: centerToast } = useToast();
+  
+  // Add tracking variables for real-time monitoring
+  const [checkInterval, setCheckInterval] = useState<NodeJS.Timeout | null>(null);
+  const [lastShownTime, setLastShownTime] = useState<Record<string, number>>({});
+  const [notificationCooldown] = useState<number>(3000); // 3 seconds cooldown between notifications for same app
   
   // Load saved whitelist from localStorage on initial mount only
   useEffect(() => {
@@ -99,6 +103,11 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return () => {
       window.removeEventListener('active-window-changed', handleActiveWindowChanged as EventListener);
       window.removeEventListener('notification-dismissed', handleNotificationDismissed as EventListener);
+      
+      // Clear interval when unmounting
+      if (checkInterval) {
+        clearInterval(checkInterval);
+      }
     };
   }, [lastActiveWindow, currentAlertApp]);
   
@@ -129,31 +138,83 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [isFocusMode]);
   
-  // Monitor active window changes when focus mode is active
+  // Start or stop real-time active window monitoring based on focus mode state
   useEffect(() => {
-    if (!isFocusMode || !lastActiveWindow) return;
-
+    // Clear any existing interval
+    if (checkInterval) {
+      clearInterval(checkInterval);
+      setCheckInterval(null);
+    }
+    
+    // Only start real-time monitoring if focus mode is active
+    if (isFocusMode) {
+      console.log("Starting real-time active window monitoring");
+      
+      // Check every 1.5 seconds - balanced between responsiveness and performance
+      const interval = setInterval(() => {
+        // Request current active window from electron main process
+        if (window.electron) {
+          window.electron.send('get-active-window');
+        }
+        
+        // Check current window against whitelist if we have a lastActiveWindow value
+        if (lastActiveWindow) {
+          checkActiveWindowAgainstWhitelist(lastActiveWindow);
+        }
+      }, 1500);
+      
+      setCheckInterval(interval);
+      
+      // Initial check right away when focus mode is enabled
+      if (lastActiveWindow) {
+        checkActiveWindowAgainstWhitelist(lastActiveWindow);
+      }
+    }
+    
+    return () => {
+      if (checkInterval) {
+        clearInterval(checkInterval);
+      }
+    };
+  }, [isFocusMode]);
+  
+  // Function to check if active window is whitelisted and handle notifications
+  const checkActiveWindowAgainstWhitelist = useCallback((windowTitle: string) => {
+    if (!isFocusMode) return;
+    
     // Extract just the app name for better matching
-    const currentAppName = extractAppName(lastActiveWindow);
+    const currentAppName = extractAppName(windowTitle);
     
     // Check if the current app is in the whitelist
     const isCurrentAppWhitelisted = isAppInWhitelist(currentAppName, whitelist);
     
     console.log("Focus check:", currentAppName, "Whitelisted:", isCurrentAppWhitelisted);
     
-    // Always show notification for non-whitelisted apps when focus mode is active
     if (!isCurrentAppWhitelisted && currentAppName) {
       console.log("Non-whitelisted app detected:", currentAppName);
       
-      // Don't show duplicate alerts for the same app in short succession
-      if (currentAlertApp !== currentAppName || !showingAlert) {
+      const now = Date.now();
+      const lastShown = lastShownTime[currentAppName] || 0;
+      
+      // Only show notification if we haven't shown one for this app recently
+      // or if the user switched back to this app from a different app
+      if ((now - lastShown > notificationCooldown) || 
+          (previousActiveWindow !== currentAppName && previousActiveWindow !== null)) {
+        
+        // Update the last shown time for this app
+        setLastShownTime(prev => ({
+          ...prev,
+          [currentAppName]: now
+        }));
+        
+        // Show notification for non-whitelisted app
         handleNonWhitelistedApp(currentAppName);
       }
     } else if (showingAlert && currentAlertApp && isAppInWhitelist(currentAlertApp, whitelist)) {
       // If we're now in a whitelisted app but still showing an alert, clear it
       setShowingAlert(false);
     }
-  }, [isFocusMode, lastActiveWindow, whitelist, showingAlert, currentAlertApp]);
+  }, [isFocusMode, whitelist, previousActiveWindow, lastShownTime, notificationCooldown, showingAlert, currentAlertApp]);
   
   // Extract the core app name from window title for more reliable matching
   const extractAppName = (windowTitle: string): string => {

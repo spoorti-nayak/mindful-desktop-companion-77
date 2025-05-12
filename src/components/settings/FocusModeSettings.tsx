@@ -1,12 +1,13 @@
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useFocusMode } from "@/contexts/FocusModeContext";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Upload, Image } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export function FocusModeSettings() {
   const { 
@@ -21,11 +22,60 @@ export function FocusModeSettings() {
   
   const [newApp, setNewApp] = useState("");
   
+  // Custom image upload state
+  const [customImage, setCustomImage] = useState<string | null>(null);
+  const [showImageDialog, setShowImageDialog] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const handleAddToWhitelist = () => {
     if (newApp.trim()) {
       addToWhitelist(newApp.trim());
       setNewApp("");
     }
+  };
+  
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      
+      // Validate file is an image
+      if (!file.type.startsWith('image/')) {
+        alert('Please upload an image file');
+        return;
+      }
+      
+      // Create URL for the uploaded file
+      const imageUrl = URL.createObjectURL(file);
+      setCustomImage(imageUrl);
+      
+      // Save to localStorage
+      try {
+        localStorage.setItem('focusModeCustomImage', imageUrl);
+      } catch (e) {
+        console.error("Failed to save custom image:", e);
+      }
+      
+      setShowImageDialog(false);
+    }
+  };
+  
+  // Load custom image from localStorage on component mount
+  React.useEffect(() => {
+    const savedImage = localStorage.getItem('focusModeCustomImage');
+    if (savedImage) {
+      setCustomImage(savedImage);
+    }
+  }, []);
+  
+  const triggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+  
+  const clearCustomImage = () => {
+    setCustomImage(null);
+    localStorage.removeItem('focusModeCustomImage');
   };
   
   return (
@@ -63,6 +113,44 @@ export function FocusModeSettings() {
             checked={dimInsteadOfBlock} 
             onCheckedChange={toggleDimOption}
           />
+        </div>
+        
+        {/* Custom notification image section */}
+        <div className="space-y-2">
+          <Label>Focus Mode Notification Image</Label>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <p className="text-sm text-muted-foreground">
+                Custom image for focus mode notifications
+              </p>
+            </div>
+            <Button 
+              onClick={() => setShowImageDialog(true)}
+              variant="outline"
+              size="sm"
+            >
+              <Image className="h-4 w-4 mr-2" />
+              {customImage ? 'Change Image' : 'Set Image'}
+            </Button>
+          </div>
+          
+          {customImage && (
+            <div className="mt-2 relative">
+              <img 
+                src={customImage} 
+                alt="Custom notification" 
+                className="w-full h-32 object-cover rounded-md border border-border"
+              />
+              <Button
+                variant="destructive"
+                size="icon"
+                className="absolute top-2 right-2 h-6 w-6 rounded-full"
+                onClick={clearCustomImage}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
         </div>
         
         <div className="space-y-4">
@@ -105,6 +193,39 @@ export function FocusModeSettings() {
             )}
           </div>
         </div>
+        
+        {/* Hidden file input for image upload */}
+        <input 
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
+        
+        {/* Image upload dialog */}
+        <AlertDialog open={showImageDialog} onOpenChange={setShowImageDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Upload Custom Notification Image</AlertDialogTitle>
+              <AlertDialogDescription>
+                Choose an image that will be displayed when focus mode notifications appear.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            
+            <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg border-muted-foreground/25">
+              <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+              <p className="text-sm text-center text-muted-foreground mb-4">
+                Click to browse or drag and drop an image
+              </p>
+              <Button onClick={triggerFileInput}>Select Image</Button>
+            </div>
+            
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );

@@ -15,7 +15,8 @@ contextBridge.exposeInMainWorld('electron', {
       'toggle-focus-mode',
       'save-timer-settings',
       'get-active-window',
-      'notification-dismissed' // Added channel to track dismissed notifications
+      'notification-dismissed', // Added channel to track dismissed notifications
+      'show-focus-popup' // Added for rich media focus popups
     ];
     
     if (validSendChannels.includes(channel)) {

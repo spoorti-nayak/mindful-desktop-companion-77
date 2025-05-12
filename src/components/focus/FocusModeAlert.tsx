@@ -7,9 +7,14 @@ import { useFocusMode } from '@/contexts/FocusModeContext';
 interface FocusModeAlertProps {
   appName: string;
   onDismiss: () => void;
+  imageUrl?: string; // Optional custom image URL
 }
 
-export function FocusModeAlert({ appName, onDismiss }: FocusModeAlertProps) {
+export function FocusModeAlert({ 
+  appName, 
+  onDismiss,
+  imageUrl = 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6'
+}: FocusModeAlertProps) {
   const [isVisible, setIsVisible] = useState(true);
   const { dimInsteadOfBlock } = useFocusMode();
   
@@ -33,7 +38,7 @@ export function FocusModeAlert({ appName, onDismiss }: FocusModeAlertProps) {
         body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
         notificationId: `focus-alert-${appName}`,
         mediaType: 'image',
-        mediaContent: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6'
+        mediaContent: imageUrl
       });
       
       // Also trigger a custom event for in-app components to handle
@@ -43,13 +48,13 @@ export function FocusModeAlert({ appName, onDismiss }: FocusModeAlertProps) {
           body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
           notificationId: `focus-alert-${appName}`,
           mediaType: 'image',
-          mediaContent: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6'
+          mediaContent: imageUrl
         }
       });
       
       window.dispatchEvent(popupEvent);
     }
-  }, [appName]);
+  }, [appName, imageUrl]);
   
   const handleDismiss = () => {
     setIsVisible(false);
@@ -69,6 +74,14 @@ export function FocusModeAlert({ appName, onDismiss }: FocusModeAlertProps) {
           className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50"
         >
           <div className="bg-black/85 text-white rounded-lg shadow-lg border border-white/10 overflow-hidden max-w-md">
+            {/* Display custom image if provided */}
+            <div className="w-full h-40 bg-black/50 overflow-hidden">
+              <img 
+                src={imageUrl} 
+                alt="Focus reminder" 
+                className="w-full h-full object-cover"
+              />
+            </div>
             <div className="p-4">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
