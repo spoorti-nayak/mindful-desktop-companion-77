@@ -7,7 +7,7 @@ import { useFocusMode } from '@/contexts/FocusModeContext';
 interface FocusModeAlertProps {
   appName: string;
   onDismiss: () => void;
-  imageUrl?: string; // Optional custom image URL
+  imageUrl?: string; // Custom image URL
 }
 
 export function FocusModeAlert({ 
@@ -31,6 +31,7 @@ export function FocusModeAlert({
   useEffect(() => {
     if (window.electron) {
       console.log("FocusModeAlert: Dispatching focus popup event for:", appName);
+      console.log("Using image URL:", imageUrl);
       
       // Trigger system-wide overlay popup with rich media
       window.electron.send('show-focus-popup', {
@@ -40,19 +41,6 @@ export function FocusModeAlert({
         mediaType: 'image',
         mediaContent: imageUrl
       });
-      
-      // Also trigger a custom event for in-app components to handle
-      const popupEvent = new CustomEvent('show-focus-popup', {
-        detail: {
-          title: "Focus Mode Alert", 
-          body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
-          notificationId: `focus-alert-${appName}`,
-          mediaType: 'image',
-          mediaContent: imageUrl
-        }
-      });
-      
-      window.dispatchEvent(popupEvent);
     }
   }, [appName, imageUrl]);
   
@@ -74,7 +62,7 @@ export function FocusModeAlert({
           className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50"
         >
           <div className="bg-black/85 text-white rounded-lg shadow-lg border border-white/10 overflow-hidden max-w-md">
-            {/* Display custom image if provided */}
+            {/* Display custom image */}
             <div className="w-full h-40 bg-black/50 overflow-hidden">
               <img 
                 src={imageUrl} 

@@ -75,4 +75,14 @@ ipcRenderer.on('notification-dismissed', (event, notificationId) => {
   console.log('Dispatched notification-dismissed event with ID:', notificationId);
 });
 
+// Create a specific listener for focus mode popup events
+ipcRenderer.on('show-focus-popup', (event, data) => {
+  // Dispatch a custom event for this specific functionality
+  window.dispatchEvent(new CustomEvent('show-focus-popup', { 
+    detail: data 
+  }));
+  
+  console.log('Dispatched show-focus-popup event:', data);
+});
+
 console.log('Preload script loaded successfully');

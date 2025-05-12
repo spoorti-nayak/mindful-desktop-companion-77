@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import SystemTrayService from '@/services/SystemTrayService';
 import { toast } from "sonner";
@@ -37,10 +38,19 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   
   // Add tracking variables for real-time monitoring
   const [checkInterval, setCheckInterval] = useState<NodeJS.Timeout | null>(null);
-  const [lastShownTime, setLastShownTime] = useState<Record<string, number>>({});
-  const [notificationCooldown] = useState<number>(3000); // 3 seconds cooldown between notifications for same app
+  const [notificationShown, setNotificationShown] = useState<Record<string, boolean>>({});
+  const [customImage, setCustomImage] = useState<string | null>(null);
+  const [wasInWhitelistedApp, setWasInWhitelistedApp] = useState(false);
   
-  // Load saved whitelist from localStorage on initial mount only
+  // Load custom image from localStorage on initial mount
+  useEffect(() => {
+    const savedImage = localStorage.getItem('focusModeCustomImage');
+    if (savedImage) {
+      setCustomImage(savedImage);
+    }
+  }, []);
+  
+  // Load saved whitelist from localStorage on initial mount
   useEffect(() => {
     const savedWhitelist = localStorage.getItem('focusModeWhitelist');
     if (savedWhitelist) {
@@ -86,14 +96,8 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     };
     
-    // Use standard event listener since SystemTrayService doesn't have a receive method
     window.addEventListener('active-window-changed', handleActiveWindowChanged as EventListener);
     window.addEventListener('notification-dismissed', handleNotificationDismissed as EventListener);
-    
-    // Add our custom focus popup event
-    window.addEventListener('show-focus-popup', (event: Event) => {
-      console.log("Received focus popup event in context");
-    });
     
     // Request the current active window
     if (window.electron) {
@@ -109,7 +113,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         clearInterval(checkInterval);
       }
     };
-  }, [lastActiveWindow, currentAlertApp]);
+  }, [lastActiveWindow, currentAlertApp, checkInterval]);
   
   // Save whitelist whenever it changes
   useEffect(() => {
@@ -146,6 +150,10 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setCheckInterval(null);
     }
     
+    // Reset tracking state when focus mode changes
+    setNotificationShown({});
+    setWasInWhitelistedApp(false);
+    
     // Only start real-time monitoring if focus mode is active
     if (isFocusMode) {
       console.log("Starting real-time active window monitoring");
@@ -169,6 +177,9 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (lastActiveWindow) {
         checkActiveWindowAgainstWhitelist(lastActiveWindow);
       }
+    } else {
+      // Clear any alerts when focus mode is disabled
+      setShowingAlert(false);
     }
     
     return () => {
@@ -177,6 +188,26 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     };
   }, [isFocusMode]);
+  
+  // Effect to track app switches between whitelisted and non-whitelisted apps
+  useEffect(() => {
+    if (!isFocusMode || !lastActiveWindow) return;
+    
+    const currentAppName = extractAppName(lastActiveWindow);
+    const isCurrentAppWhitelisted = isAppInWhitelist(currentAppName, whitelist);
+    
+    console.log(`App switched to: ${currentAppName}, Whitelisted: ${isCurrentAppWhitelisted}, Was in whitelisted: ${wasInWhitelistedApp}`);
+    
+    // If switching from whitelisted to non-whitelisted
+    if (wasInWhitelistedApp && !isCurrentAppWhitelisted && currentAppName) {
+      console.log(`Switching FROM whitelisted TO non-whitelisted app: ${currentAppName}`);
+      handleNonWhitelistedApp(currentAppName);
+    }
+    
+    // Update tracking state for next comparison
+    setWasInWhitelistedApp(isCurrentAppWhitelisted);
+    
+  }, [lastActiveWindow, isFocusMode]);
   
   // Function to check if active window is whitelisted and handle notifications
   const checkActiveWindowAgainstWhitelist = useCallback((windowTitle: string) => {
@@ -190,31 +221,25 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     console.log("Focus check:", currentAppName, "Whitelisted:", isCurrentAppWhitelisted);
     
+    // If not whitelisted, show notification (with additional conditions)
     if (!isCurrentAppWhitelisted && currentAppName) {
-      console.log("Non-whitelisted app detected:", currentAppName);
+      // Check if we need to show a notification (based on app switching pattern)
+      const needToShowNotification = wasInWhitelistedApp || 
+                                    (previousActiveWindow && 
+                                     isAppInWhitelist(extractAppName(previousActiveWindow), whitelist));
       
-      const now = Date.now();
-      const lastShown = lastShownTime[currentAppName] || 0;
-      
-      // Only show notification if we haven't shown one for this app recently
-      // or if the user switched back to this app from a different app
-      if ((now - lastShown > notificationCooldown) || 
-          (previousActiveWindow !== currentAppName && previousActiveWindow !== null)) {
-        
-        // Update the last shown time for this app
-        setLastShownTime(prev => ({
-          ...prev,
-          [currentAppName]: now
-        }));
-        
-        // Show notification for non-whitelisted app
+      if (needToShowNotification) {
+        console.log("Showing notification for non-whitelisted app:", currentAppName);
         handleNonWhitelistedApp(currentAppName);
       }
-    } else if (showingAlert && currentAlertApp && isAppInWhitelist(currentAlertApp, whitelist)) {
-      // If we're now in a whitelisted app but still showing an alert, clear it
+    } 
+    // If app is now whitelisted but we were showing an alert for it, clear the alert
+    else if (showingAlert && currentAlertApp && isAppInWhitelist(currentAlertApp, whitelist)) {
+      console.log("App is now whitelisted, clearing alert");
       setShowingAlert(false);
     }
-  }, [isFocusMode, whitelist, previousActiveWindow, lastShownTime, notificationCooldown, showingAlert, currentAlertApp]);
+    
+  }, [isFocusMode, whitelist, previousActiveWindow, wasInWhitelistedApp, showingAlert, currentAlertApp]);
   
   // Extract the core app name from window title for more reliable matching
   const extractAppName = (windowTitle: string): string => {
@@ -242,6 +267,10 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const newState = !isFocusMode;
     setIsFocusMode(newState);
     
+    // Reset tracking state when toggling focus mode
+    setNotificationShown({});
+    setWasInWhitelistedApp(false);
+    
     // Notify user of mode change
     if (newState) {
       // Send to electron main process to update tray icon
@@ -257,6 +286,9 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (lastActiveWindow) {
         const currentAppName = extractAppName(lastActiveWindow);
         const isCurrentAppWhitelisted = isAppInWhitelist(currentAppName, whitelist);
+        
+        // Update tracking state based on current app
+        setWasInWhitelistedApp(isCurrentAppWhitelisted);
         
         if (!isCurrentAppWhitelisted && currentAppName) {
           // Small delay to allow toast to show first
@@ -301,6 +333,9 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (isFocusMode && lastActiveWindow) {
       const currentAppName = extractAppName(lastActiveWindow);
       if (currentAppName === app) {
+        // Update tracking state - we're now in a non-whitelisted app
+        setWasInWhitelistedApp(false);
+        
         // Small delay to allow state update
         setTimeout(() => {
           handleNonWhitelistedApp(currentAppName);
@@ -316,9 +351,19 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const handleNonWhitelistedApp = useCallback((appName: string) => {
     console.log("Handling non-whitelisted app:", appName);
     
+    // Get the custom image from localStorage or use default
+    const imageUrl = localStorage.getItem('focusModeCustomImage') || 
+                    'https://images.unsplash.com/photo-1461749280684-dccba630e2f6';
+    
     // Set current alert app name and show the alert
     setCurrentAlertApp(appName);
     setShowingAlert(true);
+    
+    // Mark this app as having had a notification shown
+    setNotificationShown(prev => ({
+      ...prev,
+      [appName]: true
+    }));
     
     // Custom event to trigger the system-wide popup notification
     if (window.electron) {
@@ -328,7 +373,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
           notificationId: `focus-mode-${appName}`,
           mediaType: 'image',
-          mediaContent: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6'
+          mediaContent: imageUrl
         }
       });
       window.dispatchEvent(popupEvent);
@@ -339,7 +384,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
         notificationId: `focus-mode-${appName}`,
         mediaType: 'image',
-        mediaContent: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6'
+        mediaContent: imageUrl
       });
     }
     
@@ -421,6 +466,9 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     toggleDimOption
   };
   
+  // Get the custom image for the alert
+  const alertImage = customImage || 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6';
+  
   return (
     <FocusModeContext.Provider value={value}>
       {children}
@@ -428,8 +476,10 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         <FocusModeAlert 
           appName={currentAlertApp} 
           onDismiss={handleAlertDismiss} 
+          imageUrl={alertImage}
         />
       )}
     </FocusModeContext.Provider>
   );
 };
+
