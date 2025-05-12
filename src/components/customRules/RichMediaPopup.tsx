@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { Rule } from "@/contexts/CustomRulesContext";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { motion, AnimatePresence } from "framer-motion";
 
 export function RichMediaPopup() {
   const [isOpen, setIsOpen] = useState(false);
@@ -47,7 +48,7 @@ export function RichMediaPopup() {
       }
     };
 
-    // New handler for focus mode popups (from main process)
+    // Enhanced handler for focus mode popups (from main process)
     const handleShowFocusPopup = (event: CustomEvent<{
       title: string;
       body: string;
@@ -63,8 +64,8 @@ export function RichMediaPopup() {
         name: event.detail.title,
         condition: {
           type: "app_switch",
-          threshold: 0,  // Fix: add the required properties from Rule interface
-          timeWindow: 0  // Fix: add the required properties from Rule interface
+          threshold: 0, 
+          timeWindow: 0
         },
         action: {
           type: "notification",
@@ -82,6 +83,18 @@ export function RichMediaPopup() {
       setCurrentRule(focusRule);
       setDisplayType('alert'); // Always use alert dialog for focus popups for maximum visibility
       setIsOpen(true);
+      
+      // Send command to show system-level overlay popup via Electron
+      if (window.electron) {
+        console.log("Sending show-focus-popup command to Electron main process");
+        window.electron.send('show-focus-popup', {
+          title: event.detail.title,
+          body: event.detail.body,
+          notificationId: event.detail.notificationId,
+          mediaType: event.detail.mediaType,
+          mediaContent: event.detail.mediaContent
+        });
+      }
       
       // Auto-dismiss after 8 seconds
       setTimeout(() => {
@@ -111,6 +124,7 @@ export function RichMediaPopup() {
   // Handler for notification dismissed events
   useEffect(() => {
     const handleNotificationDismissed = (event: CustomEvent<string>) => {
+      console.log("Notification dismissed event received:", event.detail);
       if (currentRule && event.detail === currentRule.id) {
         setIsOpen(false);
       }

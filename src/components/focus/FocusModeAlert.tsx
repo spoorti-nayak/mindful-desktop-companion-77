@@ -22,10 +22,12 @@ export function FocusModeAlert({ appName, onDismiss }: FocusModeAlertProps) {
     return () => clearTimeout(timer);
   }, []);
   
-  // Tell the main process to show native notification when this component mounts
+  // Tell the main process to show system overlay popup when this component mounts
   useEffect(() => {
     if (window.electron) {
-      // Send event to display system overlay popup instead of just a native notification
+      console.log("FocusModeAlert: Dispatching focus popup event for:", appName);
+      
+      // Trigger system-wide overlay popup with rich media
       window.electron.send('show-focus-popup', {
         title: "Focus Mode Alert", 
         body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
@@ -33,6 +35,19 @@ export function FocusModeAlert({ appName, onDismiss }: FocusModeAlertProps) {
         mediaType: 'image',
         mediaContent: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6'
       });
+      
+      // Also trigger a custom event for in-app components to handle
+      const popupEvent = new CustomEvent('show-focus-popup', {
+        detail: {
+          title: "Focus Mode Alert", 
+          body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
+          notificationId: `focus-alert-${appName}`,
+          mediaType: 'image',
+          mediaContent: 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6'
+        }
+      });
+      
+      window.dispatchEvent(popupEvent);
     }
   }, [appName]);
   
