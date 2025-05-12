@@ -63,7 +63,8 @@ export function RichMediaPopup() {
         name: event.detail.title,
         condition: {
           type: "app_switch",
-          params: {}
+          threshold: 0,  // Fix: add the required properties from Rule interface
+          timeWindow: 0  // Fix: add the required properties from Rule interface
         },
         action: {
           type: "notification",
