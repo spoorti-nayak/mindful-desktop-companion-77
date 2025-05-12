@@ -93,7 +93,10 @@ export function AppUsageList({ className }: AppUsageListProps) {
   };
 
   const isAppWhitelisted = (appName: string): boolean => {
-    return whitelist.includes(appName);
+    return whitelist.some(item => 
+      appName.toLowerCase().includes(item.toLowerCase()) || 
+      item.toLowerCase().includes(appName.toLowerCase())
+    );
   };
 
   return (

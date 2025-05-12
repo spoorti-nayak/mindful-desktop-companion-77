@@ -17,6 +17,7 @@ export function FocusModeAlert({
 }: FocusModeAlertProps) {
   const [isVisible, setIsVisible] = useState(true);
   const { dimInsteadOfBlock } = useFocusMode();
+  const [imageError, setImageError] = useState(false);
   
   // Auto-dismiss after 8 seconds
   useEffect(() => {
@@ -33,11 +34,14 @@ export function FocusModeAlert({
       console.log("FocusModeAlert: Dispatching focus popup event for:", appName);
       console.log("Using image URL:", imageUrl);
       
+      // Create unique notification ID with timestamp
+      const notificationId = `focus-alert-${appName}-${Date.now()}`;
+      
       // Trigger system-wide overlay popup with rich media
       window.electron.send('show-focus-popup', {
         title: "Focus Mode Alert", 
         body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
-        notificationId: `focus-alert-${appName}`,
+        notificationId: notificationId,
         mediaType: 'image',
         mediaContent: imageUrl
       });
@@ -52,6 +56,11 @@ export function FocusModeAlert({
     }, 300);
   };
   
+  const handleImageError = () => {
+    console.log("Image failed to load:", imageUrl);
+    setImageError(true);
+  };
+  
   return (
     <AnimatePresence>
       {isVisible && (
@@ -62,10 +71,11 @@ export function FocusModeAlert({
           className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50"
         >
           <div className="bg-black/85 text-white rounded-lg shadow-lg border border-white/10 overflow-hidden max-w-md">
-            {/* Display custom image */}
+            {/* Display custom image with fallback */}
             <div className="w-full h-40 bg-black/50 overflow-hidden">
               <img 
-                src={imageUrl} 
+                src={!imageError ? imageUrl : 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6'} 
+                onError={handleImageError}
                 alt="Focus reminder" 
                 className="w-full h-full object-cover"
               />

@@ -34,7 +34,8 @@ contextBridge.exposeInMainWorld('electron', {
       'eye-care-reminder',
       'focus-mode-changed',
       'timer-settings-saved',
-      'notification-dismissed'
+      'notification-dismissed',
+      'show-focus-popup' // Add this to allowed channels
     ];
     
     if (validReceiveChannels.includes(channel)) {
@@ -54,35 +55,47 @@ contextBridge.exposeInMainWorld('electron', {
 
 // Listen for active-window-changed from main and dispatch a custom event for the renderer
 ipcRenderer.on('active-window-changed', (event, windowInfo) => {
-  // Extract the title from the window info or use the whole object
-  const windowTitle = windowInfo?.title || (typeof windowInfo === 'string' ? windowInfo : '');
-  
-  // Dispatch a custom event that our React components can listen to
-  window.dispatchEvent(new CustomEvent('active-window-changed', { 
-    detail: windowTitle 
-  }));
-  
-  console.log('Dispatched active-window-changed event with title:', windowTitle);
+  try {
+    // Extract the title from the window info or use the whole object
+    const windowTitle = windowInfo?.title || (typeof windowInfo === 'string' ? windowInfo : '');
+    
+    // Dispatch a custom event that our React components can listen to
+    window.dispatchEvent(new CustomEvent('active-window-changed', { 
+      detail: windowTitle 
+    }));
+    
+    console.log('Dispatched active-window-changed event with title:', windowTitle);
+  } catch (error) {
+    console.error('Error dispatching active-window-changed event:', error);
+  }
 });
 
 // Listen for notification-dismissed from main and dispatch a custom event for the renderer
 ipcRenderer.on('notification-dismissed', (event, notificationId) => {
-  // Dispatch a custom event that our React components can listen to
-  window.dispatchEvent(new CustomEvent('notification-dismissed', { 
-    detail: notificationId 
-  }));
-  
-  console.log('Dispatched notification-dismissed event with ID:', notificationId);
+  try {
+    // Dispatch a custom event that our React components can listen to
+    window.dispatchEvent(new CustomEvent('notification-dismissed', { 
+      detail: notificationId 
+    }));
+    
+    console.log('Dispatched notification-dismissed event with ID:', notificationId);
+  } catch (error) {
+    console.error('Error dispatching notification-dismissed event:', error);
+  }
 });
 
 // Create a specific listener for focus mode popup events
 ipcRenderer.on('show-focus-popup', (event, data) => {
-  // Dispatch a custom event for this specific functionality
-  window.dispatchEvent(new CustomEvent('show-focus-popup', { 
-    detail: data 
-  }));
-  
-  console.log('Dispatched show-focus-popup event:', data);
+  try {
+    // Dispatch a custom event for this specific functionality
+    window.dispatchEvent(new CustomEvent('show-focus-popup', { 
+      detail: data 
+    }));
+    
+    console.log('Dispatched show-focus-popup event:', data);
+  } catch (error) {
+    console.error('Error dispatching show-focus-popup event:', error);
+  }
 });
 
 console.log('Preload script loaded successfully');

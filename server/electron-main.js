@@ -393,18 +393,24 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
         Math.floor((height - 400) / 2)
       );
       
-      // Determine media HTML content
+      // Safe check for mediaContent
+      const safeMediaContent = mediaContent || '';
+      
+      // Determine media HTML content - handle both file:// paths and URLs safely
       let mediaHtml = '';
-      if (mediaType === 'image' && mediaContent) {
+      if (mediaType === 'image' && safeMediaContent) {
+        // Ensure the image source is properly formatted and escaped
+        const imgSrc = safeMediaContent.replace(/"/g, '\\"');
         mediaHtml = `
           <div class="media-container">
-            <img src="${mediaContent}" alt="Focus reminder" class="media-content"/>
+            <img src="${imgSrc}" alt="Focus reminder" class="media-content" onerror="this.onerror=null; this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAYAAACtWK6eAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAABZ0RVh0Q3JlYXRpb24gVGltZQAxMC8xNS8yMOBjyE8AAAAcdEVYdFNvZnR3YXJlAEFkb2JlIEZpcmV3b3JrcyBDUzVxteM2AAABaklEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOBmAn0AAcDMJ9UAAAAASUVORK5CYII='"/>
           </div>
         `;
-      } else if (mediaType === 'video' && mediaContent) {
+      } else if (mediaType === 'video' && safeMediaContent) {
+        const videoSrc = safeMediaContent.replace(/"/g, '\\"');
         mediaHtml = `
           <div class="media-container">
-            <video src="${mediaContent}" autoplay loop muted class="media-content"></video>
+            <video src="${videoSrc}" autoplay loop muted class="media-content" onerror="this.style.display='none'"></video>
           </div>
         `;
       }
@@ -752,8 +758,7 @@ function showNotification(title, body, notificationId = null) {
       if (Notification.isSupported()) {
         const notification = new Notification({
           title: title,
-          body: body,
-          icon: path.join(__dirname, 'assets', 'icon.png')
+          body: body
         });
         
         notification.show();
