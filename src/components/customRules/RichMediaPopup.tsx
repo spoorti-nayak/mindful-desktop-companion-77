@@ -11,6 +11,7 @@ export function RichMediaPopup() {
   
   useEffect(() => {
     const handleShowPopup = (event: CustomEvent<Rule>) => {
+      console.log("Received show-custom-rule-popup event", event.detail);
       setCurrentRule(event.detail);
       setIsOpen(true);
       

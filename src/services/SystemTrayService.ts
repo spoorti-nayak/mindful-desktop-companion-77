@@ -41,6 +41,7 @@ class SystemTrayService {
   // Recent window switch tracking for custom rules
   private recentSwitches: number = 0;
   private recentSwitchesTimer: NodeJS.Timeout | null = null;
+  private lastWindowSwitchTime: number = 0;
   
   private persistedData: {
     screenTimeToday: number,
@@ -67,6 +68,18 @@ class SystemTrayService {
     if (this.isDesktopApp) {
       this.initializeDesktopMonitoring();
     }
+    
+    // Initialize recent switches tracking for custom rules
+    this.initRecentSwitchesTracking();
+  }
+
+  // Initialize tracking for recent app switches (for custom rules)
+  private initRecentSwitchesTracking(): void {
+    // Reset recent switches counter every 5 minutes
+    setInterval(() => {
+      console.log(`Resetting recent switches count. Previous: ${this.recentSwitches}`);
+      this.recentSwitches = 0;
+    }, 300000);
   }
 
   // Persist data to localStorage before app closes or minimizes
@@ -186,11 +199,6 @@ class SystemTrayService {
       // Also persist data periodically to handle crashes
       setInterval(() => this.persistData(), 60000); // Every minute
     }
-    
-    // Initialize recent switches tracking for custom rules
-    setInterval(() => {
-      this.recentSwitches = 0; // Reset counter every 5 minutes
-    }, 300000);
   }
   
   // Setup daily reset at midnight
@@ -300,8 +308,28 @@ class SystemTrayService {
 
       // Force a test notification on initialization
       setTimeout(() => {
+        console.log("Sending test notification");
         this.notifyTest();
       }, 3000);
+      
+      // For testing - simulate window switches every 15 seconds in dev mode
+      if (import.meta.env.DEV) {
+        let testAppIndex = 0;
+        const testApps = ["Chrome", "VSCode", "Slack", "YouTube", "Twitter"];
+        
+        setInterval(() => {
+          const app = testApps[testAppIndex % testApps.length];
+          console.log(`Simulating switch to: ${app}`);
+          
+          // Create and dispatch a custom event
+          const event = new CustomEvent('active-window-changed', {
+            detail: app
+          });
+          window.dispatchEvent(event);
+          
+          testAppIndex++;
+        }, 15000);
+      }
     }
   }
 
@@ -514,10 +542,23 @@ class SystemTrayService {
   // Handle real window switch data from desktop APIs
   private handleRealWindowSwitch(windowTitle: string): void {
     console.log(`Real active window changed to: ${windowTitle}`);
-    this.handleWindowSwitch(windowTitle);
     
-    // Increment recent switch count for custom rules
-    this.recentSwitches++;
+    const now = Date.now();
+    // Only register as a switch if more than 2 seconds passed
+    if (now - this.lastWindowSwitchTime > 2000) {
+      this.recentSwitches++;
+      this.lastWindowSwitchTime = now;
+      
+      // Simulate an active-window-changed event that our contexts can listen for
+      const event = new CustomEvent('active-window-changed', {
+        detail: windowTitle
+      });
+      window.dispatchEvent(event);
+      
+      console.log(`Incremented recent switches to: ${this.recentSwitches}`);
+    }
+    
+    this.handleWindowSwitch(windowTitle);
   }
 
   // Handle window switch 
@@ -773,6 +814,7 @@ class SystemTrayService {
   
   // Get recent window switch count (for custom rules)
   public getRecentSwitchCount(): number {
+    console.log(`Current recent switch count: ${this.recentSwitches}`);
     return this.recentSwitches;
   }
   
