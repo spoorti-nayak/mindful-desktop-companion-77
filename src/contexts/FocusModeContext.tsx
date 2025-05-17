@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import SystemTrayService from '@/services/SystemTrayService';
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +27,10 @@ export const useFocusMode = () => {
   }
   return context;
 };
+
+// Constants for improved notification management
+const NOTIFICATION_COOLDOWN = 2000; // 2 seconds cooldown between notifications
+const DEFAULT_WHITELIST_APPS = ['Mindful Desktop Companion', 'Electron', 'electron', 'chrome-devtools']; 
 
 export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -60,10 +64,17 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [activeWindowInfo, setActiveWindowInfo] = useState<any>(null);
   
   // Track the last time a notification was shown for each app
-  const [appNotificationTimestamps, setAppNotificationTimestamps] = useState<Record<string, number>>({});
+  const appNotificationTimestamps = useRef<Record<string, number>>({});
   
   // Track if we already processed a switch to avoid duplicate popups
   const [processedSwitches, setProcessedSwitches] = useState<Set<string>>(new Set());
+  
+  // Store the timestamp of the last popup shown to implement cooldown
+  const lastPopupShownTime = useRef<number>(0);
+  
+  // Debounce for handling non-whitelisted app notifications
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isHandlingNotificationRef = useRef<boolean>(false);
 
   // Add this new effect to prevent window glitching when focus mode is toggled
   useEffect(() => {
@@ -86,11 +97,16 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const savedWhitelist = localStorage.getItem(`focusModeWhitelist-${userId}`);
     if (savedWhitelist) {
       try {
-        setWhitelist(JSON.parse(savedWhitelist));
+        // Merge with default whitelist apps to ensure Electron app is always whitelisted
+        const savedApps = JSON.parse(savedWhitelist);
+        setWhitelist([...new Set([...savedApps, ...DEFAULT_WHITELIST_APPS])]);
       } catch (e) {
         console.error("Failed to parse whitelist:", e);
-        setWhitelist([]);
+        setWhitelist([...DEFAULT_WHITELIST_APPS]);
       }
+    } else {
+      // Set default whitelist if none exists
+      setWhitelist([...DEFAULT_WHITELIST_APPS]);
     }
     
     const savedDimOption = localStorage.getItem(`focusModeDimOption-${userId}`);
@@ -136,7 +152,6 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       
       console.log("Window changed to:", newWindow);
       console.log("App name detected:", appName);
-      console.log("Complete window info:", windowInfo);
       
       // Update previous window info and current window info
       setPreviousActiveWindow(lastActiveWindow);
@@ -145,8 +160,6 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Check if this app is whitelisted and update the state
       const isWhitelisted = isAppInWhitelist(appName, whitelist);
       setIsCurrentAppWhitelisted(isWhitelisted);
-      
-      console.log("Is whitelisted:", isWhitelisted);
     };
     
     // Track dismissed notifications
@@ -176,13 +189,25 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (checkInterval) {
         clearInterval(checkInterval);
       }
+      
+      // Clear any existing debounce timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
     };
-  }, [lastActiveWindow, currentAlertApp, checkInterval, userId, whitelist]);
+  }, [lastActiveWindow, currentAlertApp, checkInterval, userId]);
   
   // Save whitelist whenever it changes
   useEffect(() => {
     try {
-      localStorage.setItem(`focusModeWhitelist-${userId}`, JSON.stringify(whitelist));
+      // Always ensure the Electron app is whitelisted
+      const updatedWhitelist = [...new Set([...whitelist, ...DEFAULT_WHITELIST_APPS])];
+      localStorage.setItem(`focusModeWhitelist-${userId}`, JSON.stringify(updatedWhitelist));
+      
+      // Update the state if we added any new default apps
+      if (updatedWhitelist.length !== whitelist.length) {
+        setWhitelist(updatedWhitelist);
+      }
     } catch (e) {
       console.error("Failed to save whitelist:", e);
     }
@@ -269,31 +294,51 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       currentAppName = extractAppName(lastActiveWindow);
     }
     
-    const isCurrentAppWhitelisted = isAppInWhitelist(currentAppName, whitelist);
-    
-    console.log(`App switched to: ${currentAppName}, Whitelisted: ${isCurrentAppWhitelisted}, Was in whitelisted: ${wasInWhitelistedApp}`);
+    // Always check against updated whitelist that includes default apps
+    const mergedWhitelist = [...new Set([...whitelist, ...DEFAULT_WHITELIST_APPS])];
+    const isCurrentAppWhitelisted = isAppInWhitelist(currentAppName, mergedWhitelist);
     
     // Create a unique ID for this switch to prevent duplicates
     const switchId = `${previousActiveWindow}-to-${currentAppName}-${Date.now()}`;
     
-    // If switching from whitelisted to non-whitelisted or between non-whitelisted apps
+    // If switching from whitelisted to non-whitelisted app
     if (!isCurrentAppWhitelisted && currentAppName) {
-      // Show notification if:
+      // Only trigger notification if:
       // 1. We're coming from a whitelisted app, OR
       // 2. We're coming from a different non-whitelisted app
+      // 3. And we haven't processed this specific switch already
       if ((wasInWhitelistedApp || 
           (lastNotifiedApp && lastNotifiedApp !== currentAppName)) && 
           !processedSwitches.has(switchId)) {
         
-        console.log(`Showing notification for app switch: ${switchId}`);
-        handleNonWhitelistedApp(currentAppName);
+        // Debounce the notification to prevent spamming
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
         
-        // Mark this switch as processed
-        setProcessedSwitches(prev => {
-          const updated = new Set(prev);
-          updated.add(switchId);
-          return updated;
-        });
+        if (!isHandlingNotificationRef.current) {
+          isHandlingNotificationRef.current = true;
+          
+          // Only show notification if cooldown period has passed
+          const now = Date.now();
+          if (now - lastPopupShownTime.current >= NOTIFICATION_COOLDOWN) {
+            console.log(`Showing notification for app switch after debounce: ${switchId}`);
+            handleNonWhitelistedApp(currentAppName);
+            lastPopupShownTime.current = now;
+            
+            // Mark this switch as processed
+            setProcessedSwitches(prev => {
+              const updated = new Set(prev);
+              updated.add(switchId);
+              return updated;
+            });
+          }
+          
+          // Reset flag after delay
+          debounceTimerRef.current = setTimeout(() => {
+            isHandlingNotificationRef.current = false;
+          }, NOTIFICATION_COOLDOWN);
+        }
       }
     }
     
@@ -325,11 +370,12 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     }
     
-    // Check if the current app is in the whitelist using improved matching
-    const isCurrentAppWhitelisted = isAppInWhitelist(currentAppName, whitelist) || 
-                                   (executableName && isAppInWhitelist(executableName, whitelist));
+    // Always include default whitelist apps
+    const mergedWhitelist = [...new Set([...whitelist, ...DEFAULT_WHITELIST_APPS])];
     
-    console.log("Focus check:", currentAppName, "Executable:", executableName, "Whitelisted:", isCurrentAppWhitelisted);
+    // Check if the current app is in the whitelist using improved matching
+    const isCurrentAppWhitelisted = isAppInWhitelist(currentAppName, mergedWhitelist) || 
+                                   (executableName && isAppInWhitelist(executableName, mergedWhitelist));
     
     // Update the state for the Live Whitelist Match Preview feature
     setCurrentActiveApp(currentAppName);
@@ -350,32 +396,45 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       
       // Check if enough time has passed since last notification for this app
       const now = Date.now();
-      const lastNotificationTime = appNotificationTimestamps[currentAppName] || 0;
-      const notificationCooldown = 5000; // 5 seconds between notifications for the same app
-      const cooldownElapsed = now - lastNotificationTime > notificationCooldown;
+      const lastNotificationTime = appNotificationTimestamps.current[currentAppName] || 0;
+      const cooldownElapsed = now - lastNotificationTime > NOTIFICATION_COOLDOWN;
+      const globalCooldownElapsed = now - lastPopupShownTime.current > NOTIFICATION_COOLDOWN;
       
       if ((isNewSwitch || isFromWhitelistedApp || isDifferentNonWhitelistedApp) && 
-          switchNotProcessed && cooldownElapsed) {
+          switchNotProcessed && cooldownElapsed && globalCooldownElapsed) {
         
-        console.log(`Showing notification for app: ${currentAppName}`);
-        handleNonWhitelistedApp(currentAppName);
-        
-        // Mark this switch as processed
-        setProcessedSwitches(prev => {
-          const updated = new Set(prev);
-          updated.add(switchId);
-          return updated;
-        });
-        
-        // Record notification timestamp for this app
-        setAppNotificationTimestamps(prev => ({
-          ...prev,
-          [currentAppName]: now
-        }));
+        // Only proceed if we're not currently handling a notification
+        if (!isHandlingNotificationRef.current) {
+          isHandlingNotificationRef.current = true;
+          
+          // Use debouncing to prevent rapid-fire notifications
+          if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+          }
+          
+          debounceTimerRef.current = setTimeout(() => {
+            console.log(`Showing notification for app: ${currentAppName} after debounce`);
+            handleNonWhitelistedApp(currentAppName);
+            lastPopupShownTime.current = Date.now();
+            
+            // Mark this switch as processed
+            setProcessedSwitches(prev => {
+              const updated = new Set(prev);
+              updated.add(switchId);
+              return updated;
+            });
+            
+            // Record notification timestamp for this app
+            appNotificationTimestamps.current[currentAppName] = Date.now();
+            
+            // Reset flag
+            isHandlingNotificationRef.current = false;
+          }, 100); // Short delay for debounce
+        }
       }
     } 
     // If app is now whitelisted but we were showing an alert for it, clear the alert
-    else if (showingAlert && currentAlertApp && isAppInWhitelist(currentAlertApp, whitelist)) {
+    else if (showingAlert && currentAlertApp && isAppInWhitelist(currentAlertApp, mergedWhitelist)) {
       console.log("App is now whitelisted, clearing alert");
       setShowingAlert(false);
     }
@@ -393,7 +452,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     }
     
-  }, [isFocusMode, whitelist, previousActiveWindow, wasInWhitelistedApp, showingAlert, currentAlertApp, lastNotifiedApp, activeWindowInfo, processedSwitches, appNotificationTimestamps]);
+  }, [isFocusMode, whitelist, previousActiveWindow, wasInWhitelistedApp, showingAlert, currentAlertApp, lastNotifiedApp, activeWindowInfo, processedSwitches, lastActiveWindow]);
   
   // Extract the core app name from window title for more reliable matching
   const extractAppName = (windowTitle: string): string => {
@@ -414,6 +473,13 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Try to extract filename or process name if it's an exe
     const processMatch = normalizedAppName.match(/([^\\\/]+)(?:\.exe)?$/i);
     const processName = processMatch ? processMatch[1].toLowerCase() : '';
+    
+    // Special case for Electron app - always consider it whitelisted
+    if (normalizedAppName.includes('electron') || 
+        normalizedAppName.includes('mindful desktop companion') ||
+        (processName && (processName.includes('electron') || processName.includes('mindful')))) {
+      return true;
+    }
     
     return whitelist.some(whitelistedApp => {
       // Normalize whitelist entry
@@ -480,64 +546,88 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   
   const toggleFocusMode = useCallback(() => {
     const newState = !isFocusMode;
-    setIsFocusMode(newState);
     
-    // Reset tracking state when toggling focus mode
-    setNotificationShown({});
-    setWasInWhitelistedApp(false);
-    setLastNotifiedApp(null);
-    setProcessedSwitches(new Set());
-    
-    // Notify user of mode change
-    if (newState) {
-      // Send to electron main process to update tray icon
-      if (window.electron) {
-        window.electron.send('toggle-focus-mode', true);
-        
-        // Add a stabilization message to prevent UI glitches
-        window.electron.send('stabilize-window', { 
-          isFocusMode: true,
-          timestamp: Date.now()
-        });
-      }
-      
-      toast.success("Focus Mode activated", {
-        description: "You'll be notified when using non-whitelisted apps",
+    // Send stabilize message first to prevent UI glitches
+    if (window.electron) {
+      window.electron.send('stabilize-window', { 
+        operation: 'pre-focus-toggle',
+        timestamp: Date.now()
       });
-      
-      // Immediately check current window against whitelist
-      if (lastActiveWindow) {
-        const currentAppName = extractAppName(lastActiveWindow);
-        const isCurrentAppWhitelisted = isAppInWhitelist(currentAppName, whitelist);
-        
-        // Update tracking state based on current app
-        setWasInWhitelistedApp(isCurrentAppWhitelisted);
-        
-        if (!isCurrentAppWhitelisted && currentAppName) {
-          // Small delay to allow toast to show first
-          setTimeout(() => {
-            handleNonWhitelistedApp(currentAppName);
-          }, 500);
-        }
-      }
-    } else {
-      // Send to electron main process to update tray icon
-      if (window.electron) {
-        window.electron.send('toggle-focus-mode', false);
-        
-        // Add a stabilization message to prevent UI glitches
-        window.electron.send('stabilize-window', { 
-          isFocusMode: false,
-          timestamp: Date.now()
-        });
-      }
-      
-      // Clear any alert when disabling focus mode
-      setShowingAlert(false);
-      setCurrentAlertApp(null);
-      
-      toast.info("Focus Mode deactivated");
     }
+    
+    // Short delay to allow stabilization message to be processed
+    setTimeout(() => {
+      setIsFocusMode(newState);
+      
+      // Reset tracking state when toggling focus mode
+      setNotificationShown({});
+      setWasInWhitelistedApp(false);
+      setLastNotifiedApp(null);
+      setProcessedSwitches(new Set());
+      
+      // Reset notification timestamps and flags
+      appNotificationTimestamps.current = {};
+      lastPopupShownTime.current = 0;
+      isHandlingNotificationRef.current = false;
+      
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+      
+      // Notify user of mode change
+      if (newState) {
+        // Send to electron main process to update tray icon
+        if (window.electron) {
+          window.electron.send('toggle-focus-mode', true);
+          
+          // Add a stabilization message to prevent UI glitches
+          window.electron.send('stabilize-window', { 
+            isFocusMode: true,
+            timestamp: Date.now()
+          });
+        }
+        
+        toast.success("Focus Mode activated", {
+          description: "You'll be notified when using non-whitelisted apps",
+        });
+        
+        // Immediately check current window against whitelist
+        if (lastActiveWindow) {
+          const currentAppName = extractAppName(lastActiveWindow);
+          const mergedWhitelist = [...new Set([...whitelist, ...DEFAULT_WHITELIST_APPS])];
+          const isCurrentAppWhitelisted = isAppInWhitelist(currentAppName, mergedWhitelist);
+          
+          // Update tracking state based on current app
+          setWasInWhitelistedApp(isCurrentAppWhitelisted);
+          
+          if (!isCurrentAppWhitelisted && currentAppName) {
+            // Small delay to allow toast to show first
+            setTimeout(() => {
+              handleNonWhitelistedApp(currentAppName);
+            }, 500);
+          }
+        }
+      } else {
+        // Send to electron main process to update tray icon
+        if (window.electron) {
+          window.electron.send('toggle-focus-mode', false);
+          
+          // Add a stabilization message to prevent UI glitches
+          window.electron.send('stabilize-window', { 
+            isFocusMode: false,
+            timestamp: Date.now()
+          });
+        }
+        
+        // Clear any alert when disabling focus mode
+        setShowingAlert(false);
+        setCurrentAlertApp(null);
+        
+        toast.info("Focus Mode deactivated");
+      }
+    }, 50);
+    
   }, [isFocusMode, lastActiveWindow, whitelist]);
   
   const addToWhitelist = useCallback((app: string) => {
@@ -561,6 +651,11 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           setShowingAlert(false);
           setCurrentAlertApp(null);
           setLastNotifiedApp(null); // Reset notification tracking
+          
+          // Also reset notification timestamps for this app
+          if (appNotificationTimestamps.current[app]) {
+            delete appNotificationTimestamps.current[app];
+          }
         }
         
         // If the current active window matches this app, update wasInWhitelistedApp
@@ -580,11 +675,21 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             timestamp: Date.now()
           });
         }
-      }, 10);
+      }, 50);
     }
   }, [whitelist, currentAlertApp, lastActiveWindow, currentActiveApp]);
   
   const removeFromWhitelist = useCallback((app: string) => {
+    // Don't allow removing default whitelisted apps
+    if (DEFAULT_WHITELIST_APPS.some(defaultApp => 
+        defaultApp.toLowerCase() === app.toLowerCase() ||
+        app.toLowerCase().includes(defaultApp.toLowerCase()) ||
+        defaultApp.toLowerCase().includes(app.toLowerCase()))) {
+      
+      toast.error("Cannot remove essential system app from whitelist");
+      return;
+    }
+    
     // Send stabilize message before making the change
     if (window.electron) {
       window.electron.send('stabilize-window', { 
@@ -608,9 +713,10 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           setWasInWhitelistedApp(false);
           
           // Show notification for this newly non-whitelisted app
+          // Add a slightly longer delay to prevent UI flickering
           setTimeout(() => {
             handleNonWhitelistedApp(currentAppName);
-          }, 100);
+          }, 300);
           
           // Update the current app whitelist status for live preview
           setIsCurrentAppWhitelisted(false);
@@ -624,7 +730,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           timestamp: Date.now()
         });
       }
-    }, 10);
+    }, 50);
   }, [isFocusMode, lastActiveWindow]);
   
   const toggleDimOption = useCallback(() => {
@@ -632,6 +738,13 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
   
   const handleNonWhitelistedApp = useCallback((appName: string) => {
+    // Skip notification for system apps
+    if (DEFAULT_WHITELIST_APPS.some(defaultApp => 
+        appName.toLowerCase().includes(defaultApp.toLowerCase()) ||
+        defaultApp.toLowerCase().includes(appName.toLowerCase()))) {
+      return;
+    }
+    
     console.log("Handling non-whitelisted app:", appName);
     
     // Update tracking to remember we've shown notification for this app
@@ -698,10 +811,8 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     
     // Update the timestamp for this app's notification
-    setAppNotificationTimestamps(prev => ({
-      ...prev,
-      [appName]: Date.now()
-    }));
+    appNotificationTimestamps.current[appName] = Date.now();
+    lastPopupShownTime.current = Date.now();
   }, [centerToast, dimInsteadOfBlock, userId, customImage]);
   
   const applyDimEffect = useCallback(() => {

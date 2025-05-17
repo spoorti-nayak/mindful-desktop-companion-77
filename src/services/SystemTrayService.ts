@@ -1,3 +1,4 @@
+
 // This service handles system tray functionality and active window monitoring
 
 class SystemTrayService {
@@ -42,6 +43,13 @@ class SystemTrayService {
   private recentSwitches: number = 0;
   private recentSwitchesTimer: NodeJS.Timeout | null = null;
   private lastWindowSwitchTime: number = 0;
+  
+  // Throttle for notification display
+  private notificationThrottleMap: Map<string, number> = new Map();
+  private notificationThrottleTime: number = 2000; // 2 seconds throttle
+  
+  // Default whitelist apps that should never trigger focus alerts
+  private readonly DEFAULT_WHITELIST_APPS = ['Electron', 'electron', 'Mindful Desktop Companion', 'chrome-devtools'];
   
   private persistedData: {
     screenTimeToday: number,
@@ -130,7 +138,14 @@ class SystemTrayService {
         
         // Load focus mode settings
         if (parsedData.focusModeWhitelist) {
-          this.focusModeWhitelist = parsedData.focusModeWhitelist;
+          // Always ensure default apps are in the whitelist
+          const mergedWhitelist = [...new Set([
+            ...parsedData.focusModeWhitelist, 
+            ...this.DEFAULT_WHITELIST_APPS
+          ])];
+          this.focusModeWhitelist = mergedWhitelist;
+        } else {
+          this.focusModeWhitelist = [...this.DEFAULT_WHITELIST_APPS];
         }
         
         if (parsedData.isFocusMode !== undefined) {
@@ -367,8 +382,16 @@ class SystemTrayService {
       }
     }
     
+    // Is this app in the DEFAULT_WHITELIST_APPS?
+    const isSystemApp = this.DEFAULT_WHITELIST_APPS.some(defaultApp => 
+      coreAppName.toLowerCase().includes(defaultApp.toLowerCase()) || 
+      defaultApp.toLowerCase().includes(coreAppName.toLowerCase())
+    );
+    
     // Check focus mode - if active and app is not whitelisted
-    if (this.isFocusMode && !this.isAppInWhitelist(coreAppName, this.focusModeWhitelist)) {
+    if (this.isFocusMode && 
+        !isSystemApp && 
+        !this.isAppInWhitelist(coreAppName, this.focusModeWhitelist)) {
       this.notifyFocusModeViolation(coreAppName);
     }
     
@@ -388,6 +411,13 @@ class SystemTrayService {
   // More flexible app matching against whitelist
   private isAppInWhitelist(appName: string, whitelist: string[]): boolean {
     if (!appName) return false;
+    
+    // Always whitelist Electron app and its related windows
+    if (this.DEFAULT_WHITELIST_APPS.some(defaultApp => 
+      appName.toLowerCase().includes(defaultApp.toLowerCase()) || 
+      defaultApp.toLowerCase().includes(appName.toLowerCase()))) {
+      return true;
+    }
     
     const normalizedAppName = appName.toLowerCase();
     
@@ -634,13 +664,32 @@ class SystemTrayService {
     this.listeners.forEach(listener => listener(message, true));
   }
   
+  // Throttled notification method to prevent spam
   private notifyFocusModeViolation(appName: string): void {
+    // Skip if this is a system app that should be whitelisted by default
+    if (this.DEFAULT_WHITELIST_APPS.some(defaultApp => 
+        appName.toLowerCase().includes(defaultApp.toLowerCase()) || 
+        defaultApp.toLowerCase().includes(appName.toLowerCase()))) {
+      return;
+    }
+    
     const notificationId = `focus-mode-violation-${appName}`;
     
     // Don't show notification if it has been dismissed recently
     if (this.processedNotifications.has(notificationId)) {
       return;
     }
+    
+    // Apply throttling to avoid rapid-fire notifications
+    const now = Date.now();
+    const lastNotified = this.notificationThrottleMap.get(appName) || 0;
+    
+    if (now - lastNotified < this.notificationThrottleTime) {
+      console.log(`Throttling notification for ${appName}, too recent`);
+      return;
+    }
+    
+    this.notificationThrottleMap.set(appName, now);
     
     const message = `You're outside your focus zone. ${appName} is not in your whitelist.`;
     
@@ -834,6 +883,7 @@ class SystemTrayService {
     // Clear processed notifications when toggling focus mode
     if (active) {
       this.processedNotifications.clear();
+      this.notificationThrottleMap.clear();
     }
     
     this.notifyFocusModeListeners();
@@ -855,10 +905,13 @@ class SystemTrayService {
   }
   
   public setFocusModeWhitelist(whitelist: string[]): void {
-    this.focusModeWhitelist = whitelist;
+    // Always ensure default apps are in the whitelist
+    const mergedWhitelist = [...new Set([...whitelist, ...this.DEFAULT_WHITELIST_APPS])];
+    this.focusModeWhitelist = mergedWhitelist;
     
     // Clear processed notifications when changing whitelist
     this.processedNotifications.clear();
+    this.notificationThrottleMap.clear();
     
     this.persistData();
   }
@@ -897,6 +950,7 @@ class SystemTrayService {
   // Reset notification tracking
   public resetNotifications(): void {
     this.processedNotifications.clear();
+    this.notificationThrottleMap.clear();
   }
 }
 

@@ -97,14 +97,22 @@ export function FocusModeAlert({
       // Use the pre-generated notification ID
       const notificationId = notificationIdRef.current;
       
-      // Send request to show system-wide overlay popup
-      window.electron.send('show-focus-popup', {
-        title: "Focus Mode Alert", 
-        body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
-        notificationId: notificationId,
-        mediaType: 'image',
-        mediaContent: !imageError ? imageUrl : 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6'
-      });
+      // Check if this is the Electron app itself by name
+      const isElectronApp = appName.toLowerCase().includes('electron') || 
+                            appName.toLowerCase().includes('mindful') ||
+                            appName.toLowerCase().includes('chrome');
+                            
+      // Don't show system-wide popup for the Electron app itself
+      if (!isElectronApp) {
+        // Send request to show system-wide overlay popup
+        window.electron.send('show-focus-popup', {
+          title: "Focus Mode Alert", 
+          body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
+          notificationId: notificationId,
+          mediaType: 'image',
+          mediaContent: !imageError ? imageUrl : 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6'
+        });
+      }
       
       // Mark popup as shown to prevent duplicate requests
       setPopupShown(true);
