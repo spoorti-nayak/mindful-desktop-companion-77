@@ -53,7 +53,7 @@ export function RichMediaPopup() {
       }
     };
 
-    // Enhanced handler for focus mode popups (from main process)
+    // Enhanced handler for focus mode popups (from main process or focus mode context)
     const handleShowFocusPopup = (event: CustomEvent<{
       title: string;
       body: string;

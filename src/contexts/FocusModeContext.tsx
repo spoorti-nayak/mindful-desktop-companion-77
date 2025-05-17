@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import SystemTrayService from '@/services/SystemTrayService';
 import { toast } from "sonner";
@@ -322,7 +321,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
   }, [isFocusMode]);
   
-  // Effect to track app switches between whitelisted and non-whitelisted apps
+  // Enhanced effect to handle app switches with improved idle detection
   useEffect(() => {
     if (!isFocusMode || !lastActiveWindow) return;
     
@@ -343,18 +342,22 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Create a unique ID for this switch to prevent duplicates
     const switchId = `${previousActiveWindow}-to-${currentAppName}-${Date.now()}`;
     
-    // If switching from whitelisted to non-whitelisted app
+    // If switching to a non-whitelisted app
     if (!isCurrentAppWhitelisted && currentAppName) {
       const now = Date.now();
       const lastActiveTime = appLastActiveTime.current[currentAppName] || 0;
       const timeSinceLastActive = now - lastActiveTime;
       
-      // Check if this app has been inactive for longer than the idle timeout
-      // or if we're coming from a whitelisted app or different non-whitelisted app
+      // Conditions for showing a notification:
+      // 1. We're coming from a whitelisted app (wasInWhitelistedApp)
+      // 2. We're switching from a different non-whitelisted app (lastNotifiedApp != currentAppName)
+      // 3. This app has been inactive for longer than the idle timeout (IDLE_RESET_TIMEOUT)
+      // 4. This is a new app switch (not already processed)
       const isIdleReset = timeSinceLastActive > IDLE_RESET_TIMEOUT;
       const isNewAppSwitch = (wasInWhitelistedApp || 
                             (lastNotifiedApp && lastNotifiedApp !== currentAppName));
       
+      // Show notification if any of the conditions are met and we haven't already processed this switch
       if ((isIdleReset || isNewAppSwitch) && !processedSwitches.has(switchId)) {
         // Debounce the notification to prevent spamming
         if (debounceTimerRef.current) {
@@ -442,7 +445,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const timeSinceLastActive = now - lastActiveTime;
       const timeSinceLastNotification = now - lastAppNotificationTime;
       
-      // Should show notification if:
+      // Enhanced criteria for showing notifications:
       // 1. This is a new switch to a non-whitelisted app, OR
       // 2. We're returning to this app after being away for IDLE_RESET_TIMEOUT, OR
       // 3. It's been a long time since we showed a notification for this app
@@ -820,6 +823,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
   
+  // Enhanced handler for non-whitelisted apps to use rich media popup
   const handleNonWhitelistedApp = useCallback((appName: string) => {
     // Skip notification for system apps
     if (DEFAULT_WHITELIST_APPS.some(defaultApp => 
@@ -850,55 +854,30 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Create a unique notification ID with timestamp
     const notificationId = `focus-mode-${appName}-${Date.now()}`;
     
-    // Instead of direct notification, dispatch a custom rule popup event
-    // This will use the RichMediaPopup component
-    const focusRuleEvent = new CustomEvent('show-custom-rule-popup', { 
+    // Use rich media popup for focus mode alerts
+    const focusRuleEvent = new CustomEvent('show-focus-popup', { 
       detail: {
-        id: notificationId,
-        name: "Focus Mode Alert",
-        condition: {
-          type: "app_switch",
-          threshold: 0,
-          timeWindow: 0
-        },
-        action: {
-          type: "popup",
-          text: alertText.replace('{app}', appName),
-          media: {
-            type: 'image',
-            content: imageUrl
-          },
-          autoDismiss: true,
-          dismissTime: 8
-        },
-        isActive: true
+        title: "Focus Mode Alert",
+        body: alertText.replace('{app}', appName),
+        notificationId: notificationId,
+        mediaType: 'image',
+        mediaContent: imageUrl,
+        appName: appName
       }
     });
     
-    console.log("Dispatching focus rule popup event");
+    console.log("Dispatching focus popup event with rich media");
     window.dispatchEvent(focusRuleEvent);
-    
-    // Show notification using the centered toast - just a small notice
-    centerToast({
-      title: "Focus Alert",
-      description: `You're outside your focus zone. ${appName} is not in your whitelist`,
-      duration: 5000,
-    });
     
     // If we're in dim mode, apply dimming effect to the screen
     if (dimInsteadOfBlock) {
       applyDimEffect();
-    } else {
-      // In a real implementation, this would block or force-close the app
-      toast.error("Non-whitelisted app detected", {
-        description: "Focus Mode is blocking this application"
-      });
     }
     
     // Update the timestamp for this app's notification
     appNotificationTimestamps.current[appName] = Date.now();
     lastPopupShownTime.current = Date.now();
-  }, [centerToast, dimInsteadOfBlock, userId, customImage, customText]);
+  }, [customImage, customText, dimInsteadOfBlock, userId]);
 
   // Test the rich media focus mode popup
   const testFocusModePopup = useCallback(() => {
@@ -907,27 +886,15 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const alertText = customText || "You're outside your focus zone. This app is not in your whitelist.";
     const testApp = currentActiveApp || "Test App";
     
-    // Create a synthetic rule for testing
-    const testEvent = new CustomEvent('show-custom-rule-popup', { 
+    // Create a synthetic event for testing with rich media
+    const testEvent = new CustomEvent('show-focus-popup', { 
       detail: {
-        id: `test-focus-popup-${Date.now()}`,
-        name: "Focus Mode Alert",
-        condition: {
-          type: "app_switch",
-          threshold: 0,
-          timeWindow: 0
-        },
-        action: {
-          type: "popup",
-          text: alertText.replace('{app}', testApp),
-          media: {
-            type: 'image',
-            content: imageUrl
-          },
-          autoDismiss: true,
-          dismissTime: 8
-        },
-        isActive: true
+        title: "Focus Mode Alert",
+        body: alertText.replace('{app}', testApp),
+        notificationId: `test-focus-popup-${Date.now()}`,
+        mediaType: 'image',
+        mediaContent: imageUrl,
+        appName: testApp
       }
     });
     
