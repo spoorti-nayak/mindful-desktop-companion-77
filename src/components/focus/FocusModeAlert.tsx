@@ -20,6 +20,8 @@ export function FocusModeAlert({
   const [imageError, setImageError] = useState(false);
   const [popupShown, setPopupShown] = useState(false);
   const notificationIdRef = useRef<string>(`focus-alert-${appName}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
+  // Reference to track if image is preloaded
+  const imagePreloadedRef = useRef<boolean>(false);
   
   // Auto-dismiss after 8 seconds
   useEffect(() => {
@@ -30,17 +32,22 @@ export function FocusModeAlert({
     return () => clearTimeout(timer);
   }, []);
   
-  // Preload image to avoid flicker once before showing notification
+  // Preload image immediately on component mount to avoid flicker
   useEffect(() => {
-    if (imageUrl && !popupShown) {
+    if (imageUrl && !imagePreloadedRef.current) {
+      // Start preloading immediately
       const img = new Image();
+      
       img.onload = () => {
-        // Image loaded successfully, now show the popup
+        // Image loaded successfully, mark as preloaded
+        imagePreloadedRef.current = true;
+        // Now show the popup with the pre-cached image
         showFocusPopup();
       };
       
       img.onerror = () => {
-        // If image fails to load, use default and show popup
+        // If image fails to load, use default
+        console.error("Failed to load focus mode image:", imageUrl);
         setImageError(true);
         showFocusPopup();
       };
@@ -48,25 +55,44 @@ export function FocusModeAlert({
       // Start loading the image
       img.src = imageUrl;
       
-      // Set a timeout to show popup even if image doesn't load in time
+      // Fallback timer in case the image takes too long or silent failure
       const fallbackTimer = setTimeout(() => {
         if (!popupShown) {
+          console.log("Using fallback timer to show popup after image load delay");
           showFocusPopup();
         }
-      }, 1000); // Wait max 1 second for image to load
+      }, 500); // Wait max 0.5 seconds for image to load
       
       return () => clearTimeout(fallbackTimer);
     } else if (!popupShown) {
-      // No image URL, just show popup with default
+      // No image URL or already preloaded, just show popup with default
       showFocusPopup();
     }
   }, [imageUrl, popupShown]);
+  
+  // Listen for popup displayed confirmations
+  useEffect(() => {
+    const handlePopupDisplayed = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail && 
+          customEvent.detail.notificationId && 
+          customEvent.detail.notificationId.includes(notificationIdRef.current)) {
+        console.log("Popup display confirmed:", customEvent.detail);
+      }
+    };
+    
+    window.addEventListener('focus-popup-displayed', handlePopupDisplayed);
+    
+    return () => {
+      window.removeEventListener('focus-popup-displayed', handlePopupDisplayed);
+    };
+  }, []);
   
   // Function to show the focus popup
   const showFocusPopup = () => {
     if (window.electron && !popupShown) {
       console.log("FocusModeAlert: Dispatching focus popup event for:", appName);
-      console.log("Using image URL:", imageUrl);
+      console.log("Using image URL:", !imageError ? imageUrl : 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6');
       
       // Use the pre-generated notification ID
       const notificationId = notificationIdRef.current;
@@ -80,21 +106,8 @@ export function FocusModeAlert({
         mediaContent: !imageError ? imageUrl : 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6'
       });
       
+      // Mark popup as shown to prevent duplicate requests
       setPopupShown(true);
-      
-      // Add listener for popup display confirmation
-      const handlePopupDisplayed = (event: Event) => {
-        const customEvent = event as CustomEvent;
-        if (customEvent.detail && customEvent.detail.notificationId === notificationId) {
-          console.log("Popup display confirmed:", customEvent.detail);
-        }
-      };
-      
-      window.addEventListener('focus-popup-displayed', handlePopupDisplayed);
-      
-      return () => {
-        window.removeEventListener('focus-popup-displayed', handlePopupDisplayed);
-      };
     }
   };
   
