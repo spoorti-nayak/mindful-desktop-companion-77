@@ -149,7 +149,7 @@ function createFocusPopupWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
   
-  // Create a larger always-on-top window for rich media popups
+  // Create a larger always-on-top window for rich media popups with updated settings
   focusPopupWindow = new BrowserWindow({
     width: 500,
     height: 400,
@@ -161,8 +161,10 @@ function createFocusPopupWindow() {
     skipTaskbar: true,
     show: false,
     alwaysOnTop: true,
+    fullscreenable: false,
+    focusable: true, // Need this to be true to allow interaction with the popup
     webPreferences: {
-      nodeIntegration: false,
+      nodeIntegration: false, // Keep isolation for security
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     }
@@ -178,7 +180,7 @@ function createFocusPopupWindow() {
     }
   });
   
-  console.log("Focus popup window created");
+  console.log("Focus popup window created with enhanced settings");
 }
 
 function createTray() {
@@ -371,10 +373,11 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
       return;
     }
     
+    // Create a unique notification ID with timestamp if not provided
+    const effectiveNotificationId = notificationId || `focus-popup-${Date.now()}`;
+    
     // Update the last processed notification ID
-    if (notificationId) {
-      lastProcessedNotificationId = notificationId;
-    }
+    lastProcessedNotificationId = effectiveNotificationId;
     
     // Ensure the focus popup window exists
     if (!focusPopupWindow || focusPopupWindow.isDestroyed()) {
@@ -415,7 +418,7 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
         `;
       }
       
-      // Create HTML content for the rich media popup
+      // Create HTML content for the rich media popup with animation
       const popupContent = `
         <html>
         <head>
@@ -431,16 +434,16 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
               display: flex;
               flex-direction: column;
               height: 100vh;
-              box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-              animation: fadeIn 0.3s ease-in;
-              border: 1px solid rgba(255, 255, 255, 0.1);
+              box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+              animation: fadeIn 0.5s ease-in;
+              border: 1px solid rgba(255, 255, 255, 0.15);
             }
             .media-container {
               width: 100%;
               height: 220px;
               overflow: hidden;
               position: relative;
-              background-color: rgba(0, 0, 0, 0.2);
+              background-color: rgba(0, 0, 0, 0.3);
             }
             .media-content {
               width: 100%;
@@ -506,7 +509,7 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
           <div class="content">
             <div class="title">${title}</div>
             <div class="body">${body}</div>
-            <div class="notification-id">${notificationId || ''}</div>
+            <div class="notification-id">${effectiveNotificationId}</div>
           </div>
           <div class="button-container">
             <button class="close-button" onclick="closeNotification()">Dismiss</button>
@@ -538,12 +541,13 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
         </html>
       `;
       
-      // Load the popup content
+      // Load the popup content and ensure it's shown on top
       focusPopupWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(popupContent)}`);
       
-      // Show the popup window
+      // Show the popup window and ensure it's on top
       focusPopupWindow.show();
       focusPopupWindow.focus();
+      focusPopupWindow.moveTop(); // Ensure it's above all windows
       
       // Also send as a native notification (as fallback)
       if (Notification.isSupported()) {
@@ -566,10 +570,10 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
         
         // Handle notification close
         notification.on('close', () => {
-          if (notificationId) {
+          if (effectiveNotificationId) {
             // Notify renderer process that notification was dismissed
             if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('notification-dismissed', notificationId);
+              mainWindow.webContents.send('notification-dismissed', effectiveNotificationId);
             }
           }
         });

@@ -45,17 +45,29 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Track when we switched from whitelisted app to non-whitelisted
   const [lastNotifiedApp, setLastNotifiedApp] = useState<string | null>(null);
   
+  // User identifier for data separation
+  const [userId, setUserId] = useState<string>(() => {
+    const storedId = localStorage.getItem('focusModeUserId');
+    if (storedId) return storedId;
+    
+    // Create new unique ID if none exists
+    const newId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    localStorage.setItem('focusModeUserId', newId);
+    return newId;
+  });
+  
   // Load custom image from localStorage on initial mount
   useEffect(() => {
-    const savedImage = localStorage.getItem('focusModeCustomImage');
+    // Load image based on user ID
+    const savedImage = localStorage.getItem(`focusModeCustomImage-${userId}`);
     if (savedImage) {
       setCustomImage(savedImage);
     }
-  }, []);
+  }, [userId]);
   
   // Load saved whitelist from localStorage on initial mount
   useEffect(() => {
-    const savedWhitelist = localStorage.getItem('focusModeWhitelist');
+    const savedWhitelist = localStorage.getItem(`focusModeWhitelist-${userId}`);
     if (savedWhitelist) {
       try {
         setWhitelist(JSON.parse(savedWhitelist));
@@ -65,7 +77,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     }
     
-    const savedDimOption = localStorage.getItem('focusModeDimOption');
+    const savedDimOption = localStorage.getItem(`focusModeDimOption-${userId}`);
     if (savedDimOption) {
       try {
         setDimInsteadOfBlock(JSON.parse(savedDimOption) === true);
@@ -74,7 +86,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     }
     
-    const savedFocusMode = localStorage.getItem('focusModeEnabled');
+    const savedFocusMode = localStorage.getItem(`focusModeEnabled-${userId}`);
     if (savedFocusMode === 'true') {
       setIsFocusMode(true);
     }
@@ -116,34 +128,34 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         clearInterval(checkInterval);
       }
     };
-  }, [lastActiveWindow, currentAlertApp, checkInterval]);
+  }, [lastActiveWindow, currentAlertApp, checkInterval, userId]);
   
   // Save whitelist whenever it changes
   useEffect(() => {
     try {
-      localStorage.setItem('focusModeWhitelist', JSON.stringify(whitelist));
+      localStorage.setItem(`focusModeWhitelist-${userId}`, JSON.stringify(whitelist));
     } catch (e) {
       console.error("Failed to save whitelist:", e);
     }
-  }, [whitelist]);
+  }, [whitelist, userId]);
   
   // Save dim option whenever it changes
   useEffect(() => {
     try {
-      localStorage.setItem('focusModeDimOption', JSON.stringify(dimInsteadOfBlock));
+      localStorage.setItem(`focusModeDimOption-${userId}`, JSON.stringify(dimInsteadOfBlock));
     } catch (e) {
       console.error("Failed to save dim option:", e);
     }
-  }, [dimInsteadOfBlock]);
+  }, [dimInsteadOfBlock, userId]);
   
   // Save focus mode state
   useEffect(() => {
     try {
-      localStorage.setItem('focusModeEnabled', isFocusMode ? 'true' : 'false');
+      localStorage.setItem(`focusModeEnabled-${userId}`, isFocusMode ? 'true' : 'false');
     } catch (e) {
       console.error("Failed to save focus mode state:", e);
     }
-  }, [isFocusMode]);
+  }, [isFocusMode, userId]);
   
   // Start or stop real-time active window monitoring based on focus mode state
   useEffect(() => {
@@ -379,8 +391,8 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Update tracking to remember we've shown notification for this app
     setLastNotifiedApp(appName);
     
-    // Get the custom image from localStorage or use default
-    const imageUrl = localStorage.getItem('focusModeCustomImage') || 
+    // Get the custom image from localStorage based on user ID
+    const imageUrl = localStorage.getItem(`focusModeCustomImage-${userId}`) || 
                     'https://images.unsplash.com/photo-1461749280684-dccba630e2f6';
     
     // Set current alert app name and show the alert
@@ -393,24 +405,15 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       [appName]: true
     }));
     
-    // Custom event to trigger the system-wide popup notification
+    // Create a unique notification ID with timestamp
+    const notificationId = `focus-mode-${appName}-${Date.now()}`;
+    
+    // Send to Electron main process for system-level popup
     if (window.electron) {
-      const popupEvent = new CustomEvent('show-focus-popup', {
-        detail: {
-          title: "Focus Mode Alert", 
-          body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
-          notificationId: `focus-mode-${appName}-${Date.now()}`, // Add timestamp for uniqueness
-          mediaType: 'image',
-          mediaContent: imageUrl
-        }
-      });
-      window.dispatchEvent(popupEvent);
-      
-      // Also send directly to Electron main process
       window.electron.send('show-focus-popup', {
         title: "Focus Mode Alert", 
         body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
-        notificationId: `focus-mode-${appName}-${Date.now()}`, // Add timestamp for uniqueness
+        notificationId: notificationId,
         mediaType: 'image',
         mediaContent: imageUrl
       });
@@ -420,11 +423,10 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     centerToast({
       title: "Focus Alert",
       description: `You're outside your focus zone. ${appName} is not in your whitelist`,
-      duration: 10000, // Show longer to ensure user sees it
+      duration: 5000,
     });
     
     // Send a native notification via Electron
-    const notificationId = `focus-mode-${appName}-${Date.now()}`;
     if (window.electron) {
       window.electron.send('show-native-notification', {
         title: "Focus Mode Alert", 
@@ -442,7 +444,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         description: "Focus Mode is blocking this application"
       });
     }
-  }, [centerToast, dimInsteadOfBlock]);
+  }, [centerToast, dimInsteadOfBlock, userId]);
   
   const applyDimEffect = useCallback(() => {
     // In a real implementation with Electron, we would create an overlay

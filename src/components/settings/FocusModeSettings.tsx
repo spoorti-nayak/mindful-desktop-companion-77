@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,24 @@ export function FocusModeSettings() {
   const [showImageDialog, setShowImageDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // User identifier for data separation
+  const [userId, setUserId] = useState<string>(() => {
+    const storedId = localStorage.getItem('focusModeUserId');
+    return storedId || '';
+  });
+  
+  // Effect to get user ID on mount
+  useEffect(() => {
+    const storedId = localStorage.getItem('focusModeUserId');
+    if (storedId) {
+      setUserId(storedId);
+    } else {
+      const newId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      localStorage.setItem('focusModeUserId', newId);
+      setUserId(newId);
+    }
+  }, []);
+  
   const handleAddToWhitelist = () => {
     if (newApp.trim()) {
       addToWhitelist(newApp.trim());
@@ -48,9 +66,9 @@ export function FocusModeSettings() {
       const imageUrl = URL.createObjectURL(file);
       setCustomImage(imageUrl);
       
-      // Save to localStorage
+      // Save to localStorage with user-specific key
       try {
-        localStorage.setItem('focusModeCustomImage', imageUrl);
+        localStorage.setItem(`focusModeCustomImage-${userId}`, imageUrl);
       } catch (e) {
         console.error("Failed to save custom image:", e);
       }
@@ -61,11 +79,13 @@ export function FocusModeSettings() {
   
   // Load custom image from localStorage on component mount
   React.useEffect(() => {
-    const savedImage = localStorage.getItem('focusModeCustomImage');
+    if (!userId) return;
+    
+    const savedImage = localStorage.getItem(`focusModeCustomImage-${userId}`);
     if (savedImage) {
       setCustomImage(savedImage);
     }
-  }, []);
+  }, [userId]);
   
   const triggerFileInput = () => {
     if (fileInputRef.current) {
@@ -75,7 +95,7 @@ export function FocusModeSettings() {
   
   const clearCustomImage = () => {
     setCustomImage(null);
-    localStorage.removeItem('focusModeCustomImage');
+    localStorage.removeItem(`focusModeCustomImage-${userId}`);
   };
   
   return (
@@ -162,6 +182,12 @@ export function FocusModeSettings() {
               value={newApp}
               onChange={(e) => setNewApp(e.target.value)}
               className="flex-1"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddToWhitelist();
+                }
+              }}
             />
             <Button onClick={handleAddToWhitelist}>
               <Plus className="h-4 w-4 mr-2" />
@@ -203,22 +229,26 @@ export function FocusModeSettings() {
           onChange={handleFileChange}
         />
         
-        {/* Image upload dialog */}
         <AlertDialog open={showImageDialog} onOpenChange={setShowImageDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Upload Custom Notification Image</AlertDialogTitle>
+              <AlertDialogTitle>Upload Custom Image</AlertDialogTitle>
               <AlertDialogDescription>
-                Choose an image that will be displayed when focus mode notifications appear.
+                Choose an image to show on focus mode notifications.
               </AlertDialogDescription>
             </AlertDialogHeader>
             
-            <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg border-muted-foreground/25">
-              <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-              <p className="text-sm text-center text-muted-foreground mb-4">
-                Click to browse or drag and drop an image
-              </p>
-              <Button onClick={triggerFileInput}>Select Image</Button>
+            <div className="flex items-center justify-center p-6 border-2 border-dashed border-muted-foreground/20 rounded-md cursor-pointer hover:bg-muted/50 transition-colors"
+                 onClick={triggerFileInput}>
+              <div className="text-center space-y-2">
+                <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  Click to select an image, or drag and drop
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  JPG, PNG, GIF up to 5MB
+                </p>
+              </div>
             </div>
             
             <AlertDialogFooter>

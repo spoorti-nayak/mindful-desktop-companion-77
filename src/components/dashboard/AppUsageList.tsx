@@ -77,7 +77,7 @@ export function AppUsageList({ className }: AppUsageListProps) {
   
   // Format milliseconds to time string (e.g. "2h 15m" or "45m" or "30s")
   const formatTime = (ms: number): string => {
-    if (ms < 1000) return "just now";
+    if (ms < 1000) return "1s"; // Show at least 1 second
     
     const seconds = Math.floor((ms / 1000) % 60);
     const minutes = Math.floor((ms / (1000 * 60)) % 60);
