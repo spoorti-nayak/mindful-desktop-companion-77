@@ -1,10 +1,9 @@
 
-// This component is being replaced by the RichMediaPopup component
-// It's kept as a stub to prevent build errors, but all functionality 
-// is now handled through the CustomRules popup system
-
 import React from 'react';
-import { useFocusMode } from '@/contexts/FocusModeContext';
+
+// This component is now fully replaced by the RichMediaPopup component
+// It's kept as a stub to prevent build errors, but all functionality 
+// is now integrated directly in the Focus Mode settings
 
 interface FocusModeAlertProps {
   appName: string;
@@ -17,6 +16,6 @@ export function FocusModeAlert({
   onDismiss,
   imageUrl
 }: FocusModeAlertProps) {
-  // This is now just a stub - the real functionality is in RichMediaPopup
+  // This is just a stub - the real functionality is in RichMediaPopup
   return null;
 }

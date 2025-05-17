@@ -15,6 +15,11 @@ interface FocusModeContextType {
   toggleDimOption: () => void;
   currentActiveApp: string | null;
   isCurrentAppWhitelisted: boolean;
+  customImage: string | null;
+  customText: string | null;
+  updateCustomText: (text: string) => void;
+  updateCustomImage: (imageUrl: string | null) => void;
+  testFocusModePopup: () => void;
 }
 
 const FocusModeContext = createContext<FocusModeContextType | undefined>(undefined);
@@ -52,6 +57,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [checkInterval, setCheckInterval] = useState<NodeJS.Timeout | null>(null);
   const [notificationShown, setNotificationShown] = useState<Record<string, boolean>>({});
   const [customImage, setCustomImage] = useState<string | null>(null);
+  const [customText, setCustomText] = useState<string | null>(null); // For custom notification text
   const [wasInWhitelistedApp, setWasInWhitelistedApp] = useState(false);
   
   // Track when we switched from whitelisted app to non-whitelisted
@@ -80,6 +86,28 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isHandlingNotificationRef = useRef<boolean>(false);
 
+  // Load custom text and image on initial mount
+  useEffect(() => {
+    const savedCustomText = localStorage.getItem(`focusModeCustomText-${userId}`);
+    if (savedCustomText) {
+      setCustomText(savedCustomText);
+    } else {
+      // Default text
+      setCustomText("You're outside your focus zone. This app is not in your whitelist.");
+      localStorage.setItem(`focusModeCustomText-${userId}`, "You're outside your focus zone. This app is not in your whitelist.");
+    }
+
+    const savedCustomImage = localStorage.getItem(`focusModeCustomImage-${userId}`);
+    if (savedCustomImage) {
+      setCustomImage(savedCustomImage);
+    } else {
+      // Default image
+      const defaultImage = 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b';
+      setCustomImage(defaultImage);
+      localStorage.setItem(`focusModeCustomImage-${userId}`, defaultImage);
+    }
+  }, [userId]);
+
   // Add this new effect to prevent window glitching when focus mode is toggled
   useEffect(() => {
     // Send stabilize message to main process when focus mode changes
@@ -95,7 +123,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return () => clearTimeout(stabilizeTimer);
     }
   }, [isFocusMode]);
-  
+
   // Load saved whitelist from localStorage on initial mount
   useEffect(() => {
     const savedWhitelist = localStorage.getItem(`focusModeWhitelist-${userId}`);
@@ -125,12 +153,6 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const savedFocusMode = localStorage.getItem(`focusModeEnabled-${userId}`);
     if (savedFocusMode === 'true') {
       setIsFocusMode(true);
-    }
-    
-    // Get custom image if available
-    const savedCustomImage = localStorage.getItem(`focusModeCustomImage-${userId}`);
-    if (savedCustomImage) {
-      setCustomImage(savedCustomImage);
     }
     
     // Register for active window change events using custom event listener
@@ -239,6 +261,17 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       console.error("Failed to save focus mode state:", e);
     }
   }, [isFocusMode, userId]);
+
+  // Save custom text whenever it changes
+  useEffect(() => {
+    if (customText) {
+      try {
+        localStorage.setItem(`focusModeCustomText-${userId}`, customText);
+      } catch (e) {
+        console.error("Failed to save custom text:", e);
+      }
+    }
+  }, [customText, userId]);
   
   // Start or stop real-time active window monitoring based on focus mode state
   useEffect(() => {
@@ -760,6 +793,22 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const toggleDimOption = useCallback(() => {
     setDimInsteadOfBlock(prev => !prev);
   }, []);
+
+  // Update custom text for focus mode alerts
+  const updateCustomText = useCallback((text: string) => {
+    setCustomText(text);
+    localStorage.setItem(`focusModeCustomText-${userId}`, text);
+  }, [userId]);
+
+  // Update custom image for focus mode alerts
+  const updateCustomImage = useCallback((imageUrl: string | null) => {
+    setCustomImage(imageUrl);
+    if (imageUrl) {
+      localStorage.setItem(`focusModeCustomImage-${userId}`, imageUrl);
+    } else {
+      localStorage.removeItem(`focusModeCustomImage-${userId}`);
+    }
+  }, [userId]);
   
   const applyDimEffect = () => {
     // In a real implementation, we would dim the screen via Electron
@@ -784,10 +833,9 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Update tracking to remember we've shown notification for this app
     setLastNotifiedApp(appName);
     
-    // Get the custom image from localStorage based on user ID
-    const imageUrl = customImage || 
-                     localStorage.getItem(`focusModeCustomImage-${userId}`) || 
-                     'https://images.unsplash.com/photo-1461749280684-dccba630e2f6';
+    // Get the custom image and text from state
+    const imageUrl = customImage || 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b';
+    const alertText = customText || `You're outside your focus zone. ${appName} is not in your whitelist.`;
     
     // Set current alert app name and show the alert
     setCurrentAlertApp(appName);
@@ -815,7 +863,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         },
         action: {
           type: "popup",
-          text: `You're outside your focus zone. ${appName} is not in your whitelist.`,
+          text: alertText.replace('{app}', appName),
           media: {
             type: 'image',
             content: imageUrl
@@ -850,7 +898,41 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Update the timestamp for this app's notification
     appNotificationTimestamps.current[appName] = Date.now();
     lastPopupShownTime.current = Date.now();
-  }, [centerToast, dimInsteadOfBlock, userId, customImage]);
+  }, [centerToast, dimInsteadOfBlock, userId, customImage, customText]);
+
+  // Test the rich media focus mode popup
+  const testFocusModePopup = useCallback(() => {
+    // Get the custom image from state
+    const imageUrl = customImage || 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b';
+    const alertText = customText || "You're outside your focus zone. This app is not in your whitelist.";
+    const testApp = currentActiveApp || "Test App";
+    
+    // Create a synthetic rule for testing
+    const testEvent = new CustomEvent('show-custom-rule-popup', { 
+      detail: {
+        id: `test-focus-popup-${Date.now()}`,
+        name: "Focus Mode Alert",
+        condition: {
+          type: "app_switch",
+          threshold: 0,
+          timeWindow: 0
+        },
+        action: {
+          type: "popup",
+          text: alertText.replace('{app}', testApp),
+          media: {
+            type: 'image',
+            content: imageUrl
+          },
+          autoDismiss: true,
+          dismissTime: 8
+        },
+        isActive: true
+      }
+    });
+    
+    window.dispatchEvent(testEvent);
+  }, [customImage, customText, currentActiveApp]);
 
   // Create the context value object
   const contextValue: FocusModeContextType = {
@@ -862,7 +944,12 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     dimInsteadOfBlock,
     toggleDimOption,
     currentActiveApp,
-    isCurrentAppWhitelisted
+    isCurrentAppWhitelisted,
+    customImage,
+    customText,
+    updateCustomText,
+    updateCustomImage,
+    testFocusModePopup
   };
 
   return (

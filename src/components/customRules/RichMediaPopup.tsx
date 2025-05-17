@@ -60,13 +60,14 @@ export function RichMediaPopup() {
       notificationId: string;
       mediaType: 'image' | 'video';
       mediaContent: string;
+      appName?: string; // Added app name for focus alerts
     }>) => {
       console.log("Received show-focus-popup event", event.detail);
       
       // Create a synthetic rule object to reuse the same popup system
       const focusRule: Rule = {
         id: event.detail.notificationId,
-        name: event.detail.title,
+        name: event.detail.title || "Focus Mode Alert",
         condition: {
           type: "app_switch",
           threshold: 0, 
@@ -74,7 +75,7 @@ export function RichMediaPopup() {
         },
         action: {
           type: "popup",
-          text: event.detail.body,
+          text: event.detail.body || `You're outside your focus zone. ${event.detail.appName || "This app"} is not in your whitelist.`,
           media: {
             type: event.detail.mediaType,
             content: event.detail.mediaContent
@@ -219,7 +220,7 @@ export function RichMediaPopup() {
         
         <div className="flex justify-end">
           <Button onClick={handleDismiss}>
-            Got it
+            Dismiss
           </Button>
         </div>
       </div>

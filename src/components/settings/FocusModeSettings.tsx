@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { X, Plus, Upload, Image, CheckCircle, XCircle, AlertCircle } from "lucide-react";
@@ -22,7 +23,12 @@ export function FocusModeSettings() {
     dimInsteadOfBlock,
     toggleDimOption,
     currentActiveApp,
-    isCurrentAppWhitelisted
+    isCurrentAppWhitelisted,
+    customImage,
+    customText,
+    updateCustomText,
+    updateCustomImage,
+    testFocusModePopup
   } = useFocusMode();
   
   const { user } = useAuth();
@@ -31,18 +37,17 @@ export function FocusModeSettings() {
   
   const [newApp, setNewApp] = useState("");
   
-  // Custom image upload state
-  const [customImage, setCustomImage] = useState<string | null>(null);
+  // Custom alert settings
   const [showImageDialog, setShowImageDialog] = useState(false);
+  const [editingText, setEditingText] = useState(customText || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Effect to get custom image on mount
+  // Update editing text when customText changes
   useEffect(() => {
-    const storedImage = localStorage.getItem(`focusModeCustomImage-${userId}`);
-    if (storedImage) {
-      setCustomImage(storedImage);
+    if (customText) {
+      setEditingText(customText);
     }
-  }, [userId]);
+  }, [customText]);
   
   const handleAddToWhitelist = () => {
     if (newApp.trim()) {
@@ -72,46 +77,14 @@ export function FocusModeSettings() {
       
       // Create URL for the uploaded file
       const imageUrl = URL.createObjectURL(file);
-      setCustomImage(imageUrl);
-      
-      // Save to localStorage with user-specific key
-      try {
-        localStorage.setItem(`focusModeCustomImage-${userId}`, imageUrl);
-        
-        // Show a test custom rule popup with the new image
-        if (isFocusMode) {
-          // Create a test focus rule popup after a short delay
-          setTimeout(() => {
-            const testEvent = new CustomEvent('show-custom-rule-popup', { 
-              detail: {
-                id: `image-preview-${Date.now()}`,
-                name: "Focus Mode Alert",
-                condition: {
-                  type: "app_switch",
-                  threshold: 0,
-                  timeWindow: 0
-                },
-                action: {
-                  type: "popup",
-                  text: "This is a preview of your focus mode alert with the new image.",
-                  media: {
-                    type: 'image',
-                    content: imageUrl
-                  },
-                  autoDismiss: true,
-                  dismissTime: 5
-                },
-                isActive: true
-              }
-            });
-            window.dispatchEvent(testEvent);
-          }, 500);
-        }
-      } catch (e) {
-        console.error("Failed to save custom image:", e);
-      }
+      updateCustomImage(imageUrl);
       
       setShowImageDialog(false);
+      
+      // Show preview after a short delay
+      setTimeout(() => {
+        testFocusModePopup();
+      }, 500);
     }
   };
   
@@ -122,42 +95,13 @@ export function FocusModeSettings() {
   };
   
   const clearCustomImage = () => {
-    setCustomImage(null);
-    localStorage.removeItem(`focusModeCustomImage-${userId}`);
+    updateCustomImage(null);
   };
   
-  // Test the rich media focus mode popup
-  const testFocusModePopup = () => {
-    // Get the custom image from localStorage
-    const imageUrl = customImage || 
-                     localStorage.getItem(`focusModeCustomImage-${userId}`) || 
-                     'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b';
-    
-    // Create a synthetic rule for testing
-    const testEvent = new CustomEvent('show-custom-rule-popup', { 
-      detail: {
-        id: `test-focus-popup-${Date.now()}`,
-        name: "Focus Mode Alert",
-        condition: {
-          type: "app_switch",
-          threshold: 0,
-          timeWindow: 0
-        },
-        action: {
-          type: "popup",
-          text: "This is a preview of your focus mode alert with custom styling.",
-          media: {
-            type: 'image',
-            content: imageUrl
-          },
-          autoDismiss: true,
-          dismissTime: 5
-        },
-        isActive: true
-      }
-    });
-    
-    window.dispatchEvent(testEvent);
+  const handleUpdateCustomText = () => {
+    if (editingText) {
+      updateCustomText(editingText);
+    }
   };
   
   return (
@@ -256,52 +200,78 @@ export function FocusModeSettings() {
           </div>
         </div>
         
-        {/* Custom notification image section */}
-        <div className="space-y-2">
-          <Label>Focus Mode Alert Image</Label>
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
+        {/* Custom Focus Mode Alert Settings */}
+        <div className="space-y-4 border rounded-lg p-4">
+          <h3 className="text-lg font-medium">Focus Mode Alert Settings</h3>
+          
+          {/* Custom notification text */}
+          <div className="space-y-2">
+            <Label htmlFor="custom-text">Alert Message</Label>
+            <Textarea
+              id="custom-text"
+              placeholder="You're outside your focus zone. {app} is not in your whitelist."
+              value={editingText}
+              onChange={(e) => setEditingText(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+            <p className="text-xs text-muted-foreground">
+              Use {'{app}'} to include the app name in your message
+            </p>
+            <Button 
+              onClick={handleUpdateCustomText} 
+              variant="secondary" 
+              size="sm"
+            >
+              Save Message
+            </Button>
+          </div>
+          
+          {/* Custom notification image */}
+          <div className="space-y-2">
+            <Label>Focus Mode Alert Image</Label>
+            <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
                 Custom image for focus mode alerts
               </p>
+              <div className="space-x-2">
+                <Button 
+                  onClick={() => setShowImageDialog(true)}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Image className="h-4 w-4 mr-2" />
+                  {customImage ? 'Change Image' : 'Set Image'}
+                </Button>
+                
+                <Button
+                  onClick={testFocusModePopup}
+                  variant="secondary"
+                  size="sm"
+                >
+                  Preview Alert
+                </Button>
+              </div>
             </div>
-            <div className="space-x-2">
-              <Button 
-                onClick={() => setShowImageDialog(true)}
-                variant="outline"
-                size="sm"
-              >
-                <Image className="h-4 w-4 mr-2" />
-                {customImage ? 'Change Image' : 'Set Image'}
-              </Button>
-              
-              <Button
-                onClick={testFocusModePopup}
-                variant="secondary"
-                size="sm"
-              >
-                Preview Alert
-              </Button>
-            </div>
+            
+            {customImage && (
+              <div className="mt-2 relative">
+                <img 
+                  src={customImage} 
+                  alt="Custom notification" 
+                  className="w-full h-32 object-cover rounded-md border border-border"
+                />
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-2 right-2 h-6 w-6 rounded-full"
+                  onClick={clearCustomImage}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
           </div>
-          
-          {customImage && (
-            <div className="mt-2 relative">
-              <img 
-                src={customImage} 
-                alt="Custom notification" 
-                className="w-full h-32 object-cover rounded-md border border-border"
-              />
-              <Button
-                variant="destructive"
-                size="icon"
-                className="absolute top-2 right-2 h-6 w-6 rounded-full"
-                onClick={clearCustomImage}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
         </div>
         
         <div className="space-y-4">
@@ -396,4 +366,3 @@ export function FocusModeSettings() {
     </Card>
   );
 }
-
