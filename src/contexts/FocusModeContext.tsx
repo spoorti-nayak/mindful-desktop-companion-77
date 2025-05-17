@@ -4,6 +4,7 @@ import SystemTrayService from '@/services/SystemTrayService';
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
 import { FocusModeAlert } from '@/components/focus/FocusModeAlert';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface FocusModeContextType {
   isFocusMode: boolean;
@@ -28,6 +29,10 @@ export const useFocusMode = () => {
 };
 
 export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
+  // Use user?.id as userId, defaulting to 'guest' if not available
+  const userId = user?.id || 'guest';
+  
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [whitelist, setWhitelist] = useState<string[]>([]);
   const [dimInsteadOfBlock, setDimInsteadOfBlock] = useState(true);

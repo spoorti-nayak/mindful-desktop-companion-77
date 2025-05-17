@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -6,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useFocusMode } from "@/contexts/FocusModeContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { X, Plus, Upload, Image, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,10 @@ export function FocusModeSettings() {
     isCurrentAppWhitelisted
   } = useFocusMode();
   
+  const { user } = useAuth();
+  // Use user?.id as userId, defaulting to 'guest' if not available
+  const userId = user?.id || 'guest';
+  
   const [newApp, setNewApp] = useState("");
   
   // Custom image upload state
@@ -31,23 +35,13 @@ export function FocusModeSettings() {
   const [showImageDialog, setShowImageDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // User identifier for data separation
-  const [userId, setUserId] = useState<string>(() => {
-    const storedId = localStorage.getItem('focusModeUserId');
-    return storedId || '';
-  });
-  
-  // Effect to get user ID on mount
+  // Effect to get custom image on mount
   useEffect(() => {
-    const storedId = localStorage.getItem('focusModeUserId');
-    if (storedId) {
-      setUserId(storedId);
-    } else {
-      const newId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      localStorage.setItem('focusModeUserId', newId);
-      setUserId(newId);
+    const storedImage = localStorage.getItem(`focusModeCustomImage-${userId}`);
+    if (storedImage) {
+      setCustomImage(storedImage);
     }
-  }, []);
+  }, [userId]);
   
   const handleAddToWhitelist = () => {
     if (newApp.trim()) {
@@ -89,16 +83,6 @@ export function FocusModeSettings() {
       setShowImageDialog(false);
     }
   };
-  
-  // Load custom image from localStorage on component mount
-  React.useEffect(() => {
-    if (!userId) return;
-    
-    const savedImage = localStorage.getItem(`focusModeCustomImage-${userId}`);
-    if (savedImage) {
-      setCustomImage(savedImage);
-    }
-  }, [userId]);
   
   const triggerFileInput = () => {
     if (fileInputRef.current) {
