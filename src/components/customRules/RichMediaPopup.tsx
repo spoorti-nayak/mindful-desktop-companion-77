@@ -35,6 +35,7 @@ export function RichMediaPopup() {
       }
       
       setIsOpen(true);
+      setIsImageLoaded(false); // Reset image loaded state
       
       // Ensure the notification is shown system-wide
       if (window.electron) {
@@ -60,7 +61,7 @@ export function RichMediaPopup() {
       notificationId: string;
       mediaType: 'image' | 'video';
       mediaContent: string;
-      appName?: string; // Added app name for focus alerts
+      appName?: string;
     }>) => {
       console.log("Received show-focus-popup event", event.detail);
       
@@ -77,7 +78,7 @@ export function RichMediaPopup() {
           type: "popup",
           text: event.detail.body || `You're outside your focus zone. ${event.detail.appName || "This app"} is not in your whitelist.`,
           media: {
-            type: event.detail.mediaType,
+            type: event.detail.mediaType || 'image',
             content: event.detail.mediaContent
           },
           autoDismiss: true,
@@ -90,6 +91,9 @@ export function RichMediaPopup() {
       setDisplayType('alert'); // Always use alert dialog for focus popups for maximum visibility
       setShowIcon(true); // Always show focus icon for focus popups
       setIsOpen(true);
+      setIsImageLoaded(false); // Reset image loaded state
+      
+      console.log("Focus popup with media:", event.detail.mediaContent);
       
       // Auto-dismiss after 8 seconds
       setTimeout(() => {
@@ -143,6 +147,7 @@ export function RichMediaPopup() {
   
   // Handle image loading
   const handleImageLoad = () => {
+    console.log("Image loaded successfully");
     setIsImageLoaded(true);
   };
   
@@ -168,7 +173,7 @@ export function RichMediaPopup() {
   const dialogContent = (
     <>
       <div className="relative">
-        {currentRule.action.media?.type === 'image' && (
+        {currentRule.action.media?.type === 'image' && currentRule.action.media.content && (
           <div className="w-full h-64 overflow-hidden">
             <img
               src={currentRule.action.media.content}
@@ -180,7 +185,7 @@ export function RichMediaPopup() {
           </div>
         )}
         
-        {currentRule.action.media?.type === 'video' && (
+        {currentRule.action.media?.type === 'video' && currentRule.action.media.content && (
           <div className="w-full h-64 overflow-hidden">
             <video
               src={currentRule.action.media.content}
@@ -240,7 +245,7 @@ export function RichMediaPopup() {
       
       {displayType === 'alert' && isOpen && (
         <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
-          <AlertDialogContent className="min-w-[500px] p-0 overflow-hidden bg-background rounded-lg border shadow-lg">
+          <AlertDialogContent className="min-w-[500px] p-0 overflow-hidden bg-background rounded-lg border shadow-lg animate-in fade-in-0 zoom-in-95">
             {dialogContent}
           </AlertDialogContent>
         </AlertDialog>

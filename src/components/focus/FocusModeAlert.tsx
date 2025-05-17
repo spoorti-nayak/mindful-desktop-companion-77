@@ -16,6 +16,7 @@ export function FocusModeAlert({
   onDismiss,
   imageUrl
 }: FocusModeAlertProps) {
-  // This is just a stub - the real functionality is in RichMediaPopup
+  // Implementation moved to RichMediaPopup component
+  // This is just a stub to prevent build errors
   return null;
 }

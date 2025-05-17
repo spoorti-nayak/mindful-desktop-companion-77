@@ -101,6 +101,11 @@ export function FocusModeSettings() {
   const handleUpdateCustomText = () => {
     if (editingText) {
       updateCustomText(editingText);
+      
+      // Show preview after updating text
+      setTimeout(() => {
+        testFocusModePopup();
+      }, 500);
     }
   };
   
