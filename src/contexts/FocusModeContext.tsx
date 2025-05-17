@@ -1,9 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import SystemTrayService from '@/services/SystemTrayService';
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast";
-import { FocusModeAlert } from '@/components/focus/FocusModeAlert';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface FocusModeContextType {
@@ -29,8 +27,10 @@ export const useFocusMode = () => {
 };
 
 // Constants for improved notification management
-const NOTIFICATION_COOLDOWN = 2000; // 2 seconds cooldown between notifications
+const NOTIFICATION_COOLDOWN = 1500; // 1.5 seconds cooldown between notifications
 const DEFAULT_WHITELIST_APPS = ['Mindful Desktop Companion', 'Electron', 'electron', 'chrome-devtools']; 
+// Idle timeout - trigger notification after this amount of time in a different app
+const IDLE_RESET_TIMEOUT = 30000; // 30 seconds
 
 export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -71,6 +71,9 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   
   // Store the timestamp of the last popup shown to implement cooldown
   const lastPopupShownTime = useRef<number>(0);
+  
+  // Track the last time each app was active to implement idle reset
+  const appLastActiveTime = useRef<Record<string, number>>({});
   
   // Debounce for handling non-whitelisted app notifications
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -156,6 +159,11 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Update previous window info and current window info
       setPreviousActiveWindow(lastActiveWindow);
       setLastActiveWindow(newWindow);
+      
+      // Record the time this app was last active
+      if (appName) {
+        appLastActiveTime.current[appName] = Date.now();
+      }
       
       // Check if this app is whitelisted and update the state
       const isWhitelisted = isAppInWhitelist(appName, whitelist);
@@ -303,14 +311,17 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     // If switching from whitelisted to non-whitelisted app
     if (!isCurrentAppWhitelisted && currentAppName) {
-      // Only trigger notification if:
-      // 1. We're coming from a whitelisted app, OR
-      // 2. We're coming from a different non-whitelisted app
-      // 3. And we haven't processed this specific switch already
-      if ((wasInWhitelistedApp || 
-          (lastNotifiedApp && lastNotifiedApp !== currentAppName)) && 
-          !processedSwitches.has(switchId)) {
-        
+      const now = Date.now();
+      const lastActiveTime = appLastActiveTime.current[currentAppName] || 0;
+      const timeSinceLastActive = now - lastActiveTime;
+      
+      // Check if this app has been inactive for longer than the idle timeout
+      // or if we're coming from a whitelisted app or different non-whitelisted app
+      const isIdleReset = timeSinceLastActive > IDLE_RESET_TIMEOUT;
+      const isNewAppSwitch = (wasInWhitelistedApp || 
+                            (lastNotifiedApp && lastNotifiedApp !== currentAppName));
+      
+      if ((isIdleReset || isNewAppSwitch) && !processedSwitches.has(switchId)) {
         // Debounce the notification to prevent spamming
         if (debounceTimerRef.current) {
           clearTimeout(debounceTimerRef.current);
@@ -320,7 +331,6 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           isHandlingNotificationRef.current = true;
           
           // Only show notification if cooldown period has passed
-          const now = Date.now();
           if (now - lastPopupShownTime.current >= NOTIFICATION_COOLDOWN) {
             console.log(`Showing notification for app switch after debounce: ${switchId}`);
             handleNonWhitelistedApp(currentAppName);
@@ -391,16 +401,29 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const isFromWhitelistedApp = wasInWhitelistedApp;
       const isDifferentNonWhitelistedApp = lastNotifiedApp && lastNotifiedApp !== currentAppName;
       
+      // Check for idle reset (app hasn't been active recently)
+      const now = Date.now();
+      const lastActiveTime = appLastActiveTime.current[currentAppName] || 0;
+      const lastAppNotificationTime = appNotificationTimestamps.current[currentAppName] || 0;
+      const timeSinceLastActive = now - lastActiveTime;
+      const timeSinceLastNotification = now - lastAppNotificationTime;
+      
+      // Should show notification if:
+      // 1. This is a new switch to a non-whitelisted app, OR
+      // 2. We're returning to this app after being away for IDLE_RESET_TIMEOUT, OR
+      // 3. It's been a long time since we showed a notification for this app
+      const isIdleReset = timeSinceLastActive > IDLE_RESET_TIMEOUT;
+      const isNotificationReset = timeSinceLastNotification > IDLE_RESET_TIMEOUT;
+      
       // Only show notification once per switch
       const switchNotProcessed = !processedSwitches.has(switchId);
       
       // Check if enough time has passed since last notification for this app
-      const now = Date.now();
-      const lastNotificationTime = appNotificationTimestamps.current[currentAppName] || 0;
-      const cooldownElapsed = now - lastNotificationTime > NOTIFICATION_COOLDOWN;
+      const cooldownElapsed = now - lastAppNotificationTime > NOTIFICATION_COOLDOWN;
       const globalCooldownElapsed = now - lastPopupShownTime.current > NOTIFICATION_COOLDOWN;
       
-      if ((isNewSwitch || isFromWhitelistedApp || isDifferentNonWhitelistedApp) && 
+      if ((isNewSwitch || isIdleReset || isNotificationReset || 
+          isFromWhitelistedApp || isDifferentNonWhitelistedApp) && 
           switchNotProcessed && cooldownElapsed && globalCooldownElapsed) {
         
         // Only proceed if we're not currently handling a notification
@@ -737,6 +760,16 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setDimInsteadOfBlock(prev => !prev);
   }, []);
   
+  const applyDimEffect = () => {
+    // In a real implementation, we would dim the screen via Electron
+    console.log("Applying dimming effect to screen");
+    if (window.electron) {
+      window.electron.send('apply-screen-dim', { 
+        opacity: 0.7 
+      });
+    }
+  };
+  
   const handleNonWhitelistedApp = useCallback((appName: string) => {
     // Skip notification for system apps
     if (DEFAULT_WHITELIST_APPS.some(defaultApp => 
@@ -768,37 +801,40 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Create a unique notification ID with timestamp
     const notificationId = `focus-mode-${appName}-${Date.now()}`;
     
-    // Send to Electron main process for system-level popup
-    if (window.electron) {
-      console.log("Sending focus popup request to Electron with image:", imageUrl);
-      window.electron.send('show-focus-popup', {
-        title: "Focus Mode Alert", 
-        body: `You're outside your focus zone. ${appName} is not in your whitelist.`,
-        notificationId: notificationId,
-        mediaType: 'image',
-        mediaContent: imageUrl
-      });
-      
-      // Pre-download and cache the image to prevent loading delays
-      const img = new Image();
-      img.src = imageUrl;
-    }
+    // Instead of direct notification, dispatch a custom rule popup event
+    // This will use the RichMediaPopup component
+    const focusRuleEvent = new CustomEvent('show-custom-rule-popup', { 
+      detail: {
+        id: notificationId,
+        name: "Focus Mode Alert",
+        condition: {
+          type: "app_switch",
+          threshold: 0,
+          timeWindow: 0
+        },
+        action: {
+          type: "popup",
+          text: `You're outside your focus zone. ${appName} is not in your whitelist.`,
+          media: {
+            type: 'image',
+            content: imageUrl
+          },
+          autoDismiss: true,
+          dismissTime: 8
+        },
+        isActive: true
+      }
+    });
     
-    // Show notification using the centered toast
+    console.log("Dispatching focus rule popup event");
+    window.dispatchEvent(focusRuleEvent);
+    
+    // Show notification using the centered toast - just a small notice
     centerToast({
       title: "Focus Alert",
       description: `You're outside your focus zone. ${appName} is not in your whitelist`,
       duration: 5000,
     });
-    
-    // Send a native notification via Electron
-    if (window.electron) {
-      window.electron.send('show-native-notification', {
-        title: "Focus Mode Alert", 
-        body: `You're outside your focus zone. ${appName} is not in your whitelist`,
-        notificationId: notificationId
-      });
-    }
     
     // If we're in dim mode, apply dimming effect to the screen
     if (dimInsteadOfBlock) {
@@ -814,72 +850,8 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     appNotificationTimestamps.current[appName] = Date.now();
     lastPopupShownTime.current = Date.now();
   }, [centerToast, dimInsteadOfBlock, userId, customImage]);
-  
-  const applyDimEffect = useCallback(() => {
-    // In a real implementation with Electron, we would create an overlay
-    // For this demo, we'll show a dimming overlay in the web UI
-    const existingOverlay = document.getElementById('focus-mode-dim-overlay');
-    
-    if (!existingOverlay) {
-      const overlay = document.createElement('div');
-      overlay.id = 'focus-mode-dim-overlay';
-      overlay.style.position = 'fixed';
-      overlay.style.top = '0';
-      overlay.style.left = '0';
-      overlay.style.width = '100vw';
-      overlay.style.height = '100vh';
-      overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-      overlay.style.zIndex = '9999';
-      overlay.style.pointerEvents = 'none'; // Allow clicks to pass through
-      overlay.style.transition = 'opacity 0.5s ease';
-      
-      document.body.appendChild(overlay);
-      
-      // Auto-remove after 3 seconds
-      setTimeout(() => {
-        if (overlay.parentNode) {
-          overlay.style.opacity = '0';
-          setTimeout(() => {
-            if (overlay.parentNode) {
-              overlay.parentNode.removeChild(overlay);
-            }
-          }, 500);
-        }
-      }, 3000);
-    }
-  }, []);
-  
-  // Handle dismissing the alert
-  const handleAlertDismiss = useCallback(() => {
-    setShowingAlert(false);
-    setCurrentAlertApp(null);
-  }, []);
-  
-  const value = {
-    isFocusMode,
-    toggleFocusMode,
-    whitelist,
-    addToWhitelist,
-    removeFromWhitelist,
-    dimInsteadOfBlock,
-    toggleDimOption,
-    currentActiveApp,
-    isCurrentAppWhitelisted
-  };
-  
-  // Get the custom image for the alert
-  const alertImage = customImage || 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6';
-  
-  return (
-    <FocusModeContext.Provider value={value}>
-      {children}
-      {showingAlert && currentAlertApp && (
-        <FocusModeAlert 
-          appName={currentAlertApp} 
-          onDismiss={handleAlertDismiss} 
-          imageUrl={alertImage}
-        />
-      )}
-    </FocusModeContext.Provider>
-  );
-};
+
+  // ... keep existing code (the rest of the file)
+}
+
+export { FocusModeProvider };

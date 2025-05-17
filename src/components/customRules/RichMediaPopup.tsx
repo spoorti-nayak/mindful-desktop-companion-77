@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { X, Focus } from "lucide-react";
 import { Rule } from "@/contexts/CustomRulesContext";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -12,6 +12,7 @@ export function RichMediaPopup() {
   const [currentRule, setCurrentRule] = useState<Rule | null>(null);
   const [displayType, setDisplayType] = useState<'dialog' | 'alert'>('dialog');
   const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const [showIcon, setShowIcon] = useState(false);
   
   // Listen for rule-based popups and focus-mode popups
   useEffect(() => {
@@ -19,6 +20,9 @@ export function RichMediaPopup() {
     const handleShowCustomRulePopup = (event: CustomEvent<Rule>) => {
       console.log("Received show-custom-rule-popup event", event.detail);
       setCurrentRule(event.detail);
+      
+      // Set icon display based on rule type
+      setShowIcon(event.detail.name.toLowerCase().includes("focus"));
       
       // Choose display type based on rule condition or action
       if (
@@ -69,7 +73,7 @@ export function RichMediaPopup() {
           timeWindow: 0
         },
         action: {
-          type: "notification",
+          type: "popup",
           text: event.detail.body,
           media: {
             type: event.detail.mediaType,
@@ -83,18 +87,23 @@ export function RichMediaPopup() {
       
       setCurrentRule(focusRule);
       setDisplayType('alert'); // Always use alert dialog for focus popups for maximum visibility
+      setShowIcon(true); // Always show focus icon for focus popups
       setIsOpen(true);
-      
-      // Send command to show system-level overlay popup via Electron
-      if (window.electron) {
-        console.log("Sending show-focus-popup command to Electron main process");
-        window.electron.send('show-focus-popup', event.detail);
-      }
       
       // Auto-dismiss after 8 seconds
       setTimeout(() => {
         setIsOpen(false);
       }, 8000);
+      
+      // Now we send a confirmation back that the popup was displayed
+      // This helps with popup coordination in the main process
+      const confirmEvent = new CustomEvent('focus-popup-displayed', {
+        detail: {
+          notificationId: event.detail.notificationId,
+          timestamp: Date.now()
+        }
+      });
+      window.dispatchEvent(confirmEvent);
     };
     
     // Add event listeners
@@ -141,6 +150,18 @@ export function RichMediaPopup() {
     setIsImageLoaded(true); // Still mark as loaded to show the dialog
   };
   
+  const handleDismiss = () => {
+    setIsOpen(false);
+    
+    // Dispatch an event that the notification was dismissed
+    if (currentRule) {
+      const dismissEvent = new CustomEvent('notification-dismissed', {
+        detail: currentRule.id
+      });
+      window.dispatchEvent(dismissEvent);
+    }
+  };
+  
   if (!currentRule) return null;
   
   const dialogContent = (
@@ -176,7 +197,7 @@ export function RichMediaPopup() {
           variant="ghost"
           size="icon"
           className="absolute top-2 right-2 rounded-full bg-background/80 hover:bg-background/90"
-          onClick={() => setIsOpen(false)}
+          onClick={handleDismiss}
         >
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
@@ -185,14 +206,19 @@ export function RichMediaPopup() {
       
       <div className="p-6 space-y-4">
         <div className="space-y-2">
-          <h3 className="text-xl font-semibold">{currentRule.name}</h3>
+          <div className="flex items-center gap-2">
+            {showIcon && (
+              <Focus className="h-5 w-5 text-amber-400" />
+            )}
+            <h3 className="text-xl font-semibold">{currentRule.name}</h3>
+          </div>
           <p className="text-muted-foreground">
             {currentRule.action.text}
           </p>
         </div>
         
         <div className="flex justify-end">
-          <Button onClick={() => setIsOpen(false)}>
+          <Button onClick={handleDismiss}>
             Got it
           </Button>
         </div>
@@ -202,8 +228,8 @@ export function RichMediaPopup() {
   
   // Render different container types based on the display type
   return (
-    <>
-      {displayType === 'dialog' && (
+    <AnimatePresence>
+      {displayType === 'dialog' && isOpen && (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogContent className="min-w-[500px] p-0 overflow-hidden bg-background rounded-lg border shadow-lg animate-in fade-in-0 zoom-in-95">
             {dialogContent}
@@ -211,13 +237,13 @@ export function RichMediaPopup() {
         </Dialog>
       )}
       
-      {displayType === 'alert' && (
+      {displayType === 'alert' && isOpen && (
         <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
           <AlertDialogContent className="min-w-[500px] p-0 overflow-hidden bg-background rounded-lg border shadow-lg">
             {dialogContent}
           </AlertDialogContent>
         </AlertDialog>
       )}
-    </>
+    </AnimatePresence>
   );
 }
