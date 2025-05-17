@@ -149,7 +149,7 @@ function createFocusPopupWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
   
-  // Create a system-level always-on-top window for focus popups with the exact requested settings
+  // Create a system-level always-on-top window for focus popups with exactly the requested settings
   focusPopupWindow = new BrowserWindow({
     width: 500,
     height: 400,
@@ -169,8 +169,22 @@ function createFocusPopupWindow() {
     }
   });
   
+  // Set additional properties for maximum visibility
+  focusPopupWindow.setVisibleOnAllWorkspaces(true);
+  focusPopupWindow.setAlwaysOnTop(true, 'screen-saver', 1);
+  
   // Load a blank HTML
   focusPopupWindow.loadURL('data:text/html;charset=utf-8,<html><body style="background: transparent;"></body></html>');
+  
+  // Set up event handlers
+  focusPopupWindow.once('ready-to-show', () => {
+    console.log("Focus popup window is ready to show");
+  });
+  
+  focusPopupWindow.on('closed', () => {
+    console.log("Focus popup window closed");
+    focusPopupWindow = null;
+  });
   
   console.log("Focus popup window created with system-level overlay settings");
 }
@@ -357,10 +371,11 @@ function toggleFocusMode() {
   );
 }
 
-// Enhanced function to show rich media popups for focus mode
+// Improved function to show focus popup with rich media
 function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaContent = '') {
   try {
     console.log(`Showing focus popup: ${title} - ${body}`);
+    console.log(`Media type: ${mediaType}, Media content: ${mediaContent}`);
     
     // Check if we've already processed this notification ID to prevent duplicates
     if (notificationId && notificationId === lastProcessedNotificationId) {
@@ -401,7 +416,8 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
         const imgSrc = safeMediaContent.replace(/"/g, '\\"');
         mediaHtml = `
           <div class="media-container">
-            <img src="${imgSrc}" alt="Focus reminder" class="media-content" onerror="this.onerror=null; this.src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAYAAACtWK6eAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAABZ0RVh0Q3JlYXRpb24gVGltZQAxMC8xNS8yMOBjyE8AAAAcdEVYdFNvZnR3YXJlAEFkb2JlIEZpcmV3b3JrcyBDUzVxteM2AAABaklEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOBmAn0AAcDMJ9UAAAAASUVORK5CYII='"/>
+            <img src="${imgSrc}" alt="Focus reminder" class="media-content" 
+                 onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1461749280684-dccba630e2f6'"/>
           </div>
         `;
       } else if (mediaType === 'video' && safeMediaContent) {
@@ -510,6 +526,18 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
             <button class="close-button" onclick="closeNotification()">Dismiss</button>
           </div>
           <script>
+            // Notify renderer that popup is displayed
+            if (window.opener) {
+              try {
+                window.opener.postMessage({
+                  action: 'focus-popup-displayed',
+                  notificationId: '${effectiveNotificationId}'
+                }, '*');
+              } catch (e) {
+                console.error('Failed to notify opener:', e);
+              }
+            }
+            
             // Auto-close after 8 seconds
             const autoCloseTimeout = setTimeout(() => {
               closeNotification();
@@ -520,11 +548,45 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
               window.close();
             }
             
+            // Preload image to ensure it's cached
+            if ('${mediaType}' === 'image') {
+              const img = new Image();
+              img.onload = function() {
+                document.querySelector('.media-content').style.opacity = 1;
+                
+                // Notify renderer the image has loaded successfully
+                if (window.opener) {
+                  try {
+                    window.opener.postMessage({
+                      action: 'focus-popup-media-loaded',
+                      notificationId: '${effectiveNotificationId}'
+                    }, '*');
+                  } catch (e) {
+                    console.error('Failed to notify opener about media load:', e);
+                  }
+                }
+              };
+              img.onerror = function() {
+                // Fall back to default image
+                document.querySelector('.media-content').src = 'https://images.unsplash.com/photo-1461749280684-dccba630e2f6';
+              };
+              
+              // Start loading if not already loaded
+              if (!document.querySelector('.media-content').complete) {
+                img.src = '${safeMediaContent}';
+              }
+            }
+            
             // Allow clicking anywhere to close
             document.body.addEventListener('click', (e) => {
               if (!e.target.classList.contains('close-button')) {
                 closeNotification();
               }
+            });
+            
+            // Confirm popup is displayed
+            document.addEventListener('DOMContentLoaded', () => {
+              console.log('Focus popup loaded and displayed');
             });
           </script>
         </body>
@@ -534,11 +596,25 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
       // Load the popup content and ensure it's shown on top
       focusPopupWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(popupContent)}`);
       
-      // Show the popup window, make it visible and force it to top
-      focusPopupWindow.show();
+      // Set crucial window properties to ensure it appears as an overlay
       focusPopupWindow.setAlwaysOnTop(true, 'screen-saver', 1); // Enforce maximum level of always on top
-      focusPopupWindow.moveTop();
       focusPopupWindow.setSkipTaskbar(true);
+      focusPopupWindow.setVisibleOnAllWorkspaces(true);
+      focusPopupWindow.setFullScreenable(false);
+      
+      // Show the popup window and force it to top
+      focusPopupWindow.show();
+      focusPopupWindow.moveTop();
+      
+      // Notify the renderer that the popup has been displayed
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('focus-popup-displayed', {
+          notificationId: effectiveNotificationId,
+          status: 'displayed'
+        });
+      }
+      
+      console.log("Focus popup shown as system-level overlay on top of all windows");
       
       // Also send as a native notification (as fallback)
       if (Notification.isSupported()) {
@@ -569,8 +645,6 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
           }
         });
       }
-      
-      console.log("Focus popup shown as system-level overlay on top of all windows");
     }
   } catch (error) {
     console.error("Error showing focus popup:", error);
@@ -836,6 +910,7 @@ ipcMain.on('toggle-focus-mode', (event, enableFocusMode) => {
 // Add handler for focus mode popups (rich media)
 ipcMain.on('show-focus-popup', (event, {title, body, notificationId, mediaType = 'image', mediaContent = ''}) => {
   console.log(`IPC focus popup received: ${title} - ${body}`);
+  console.log(`Media details - Type: ${mediaType}, Content: ${mediaContent}`);
   showFocusPopup(title, body, notificationId, mediaType, mediaContent);
 });
 

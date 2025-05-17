@@ -5,17 +5,18 @@ import { AlertDialog, AlertDialogContent } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { Rule } from "@/contexts/CustomRulesContext";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function RichMediaPopup() {
   const [isOpen, setIsOpen] = useState(false);
   const [currentRule, setCurrentRule] = useState<Rule | null>(null);
-  const [displayType, setDisplayType] = useState<'dialog' | 'alert' | 'popover'>('dialog');
+  const [displayType, setDisplayType] = useState<'dialog' | 'alert'>('dialog');
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
   
+  // Listen for rule-based popups and focus-mode popups
   useEffect(() => {
-    // Original handler for rule-based popups
-    const handleShowPopup = (event: CustomEvent<Rule>) => {
+    // Handler for rule-based popups
+    const handleShowCustomRulePopup = (event: CustomEvent<Rule>) => {
       console.log("Received show-custom-rule-popup event", event.detail);
       setCurrentRule(event.detail);
       
@@ -87,13 +88,7 @@ export function RichMediaPopup() {
       // Send command to show system-level overlay popup via Electron
       if (window.electron) {
         console.log("Sending show-focus-popup command to Electron main process");
-        window.electron.send('show-focus-popup', {
-          title: event.detail.title,
-          body: event.detail.body,
-          notificationId: event.detail.notificationId,
-          mediaType: event.detail.mediaType,
-          mediaContent: event.detail.mediaContent
-        });
+        window.electron.send('show-focus-popup', event.detail);
       }
       
       // Auto-dismiss after 8 seconds
@@ -104,25 +99,14 @@ export function RichMediaPopup() {
     
     // Add event listeners
     window.addEventListener('show-custom-rule-popup', 
-      handleShowPopup as EventListener
+      handleShowCustomRulePopup as EventListener
     );
     
     window.addEventListener('show-focus-popup', 
       handleShowFocusPopup as EventListener
     );
     
-    return () => {
-      window.removeEventListener('show-custom-rule-popup', 
-        handleShowPopup as EventListener
-      );
-      window.removeEventListener('show-focus-popup', 
-        handleShowFocusPopup as EventListener
-      );
-    };
-  }, []);
-  
-  // Handler for notification dismissed events
-  useEffect(() => {
+    // Handle notification dismissed events
     const handleNotificationDismissed = (event: CustomEvent<string>) => {
       console.log("Notification dismissed event received:", event.detail);
       if (currentRule && event.detail === currentRule.id) {
@@ -135,11 +119,27 @@ export function RichMediaPopup() {
     );
     
     return () => {
+      window.removeEventListener('show-custom-rule-popup', 
+        handleShowCustomRulePopup as EventListener
+      );
+      window.removeEventListener('show-focus-popup', 
+        handleShowFocusPopup as EventListener
+      );
       window.removeEventListener('notification-dismissed', 
         handleNotificationDismissed as EventListener
       );
     };
   }, [currentRule]);
+  
+  // Handle image loading
+  const handleImageLoad = () => {
+    setIsImageLoaded(true);
+  };
+  
+  const handleImageError = () => {
+    console.error("Failed to load image:", currentRule?.action.media?.content);
+    setIsImageLoaded(true); // Still mark as loaded to show the dialog
+  };
   
   if (!currentRule) return null;
   
@@ -152,6 +152,8 @@ export function RichMediaPopup() {
               src={currentRule.action.media.content}
               alt="Rule media"
               className="w-full h-full object-cover"
+              onLoad={handleImageLoad}
+              onError={handleImageError}
             />
           </div>
         )}
@@ -164,6 +166,8 @@ export function RichMediaPopup() {
               muted
               loop
               className="w-full h-full object-cover"
+              onLoadedData={handleImageLoad}
+              onError={handleImageError}
             />
           </div>
         )}

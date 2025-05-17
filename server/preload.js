@@ -35,7 +35,8 @@ contextBridge.exposeInMainWorld('electron', {
       'focus-mode-changed',
       'timer-settings-saved',
       'notification-dismissed',
-      'show-focus-popup' // Add this to allowed channels
+      'show-focus-popup', // Add this to allowed channels
+      'focus-popup-displayed' // New event to confirm popup was displayed
     ];
     
     if (validReceiveChannels.includes(channel)) {
@@ -92,6 +93,19 @@ ipcRenderer.on('show-focus-popup', (event, data) => {
     console.log('Dispatched show-focus-popup event:', data);
   } catch (error) {
     console.error('Error dispatching show-focus-popup event:', error);
+  }
+});
+
+// Add new event listener for focus-popup-displayed confirmation
+ipcRenderer.on('focus-popup-displayed', (event, data) => {
+  try {
+    window.dispatchEvent(new CustomEvent('focus-popup-displayed', { 
+      detail: data 
+    }));
+    
+    console.log('Focus popup display confirmed:', data);
+  } catch (error) {
+    console.error('Error dispatching focus-popup-displayed event:', error);
   }
 });
 
