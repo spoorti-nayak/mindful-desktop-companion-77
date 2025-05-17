@@ -53,26 +53,22 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   
   // Enhanced window info from active-win
   const [activeWindowInfo, setActiveWindowInfo] = useState<any>(null);
-  
-  // User identifier for data separation
-  const [userId, setUserId] = useState<string>(() => {
-    const storedId = localStorage.getItem('focusModeUserId');
-    if (storedId) return storedId;
-    
-    // Create new unique ID if none exists
-    const newId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    localStorage.setItem('focusModeUserId', newId);
-    return newId;
-  });
-  
-  // Load custom image from localStorage on initial mount
+
+  // Add this new effect to prevent window glitching when focus mode is toggled
   useEffect(() => {
-    // Load image based on user ID
-    const savedImage = localStorage.getItem(`focusModeCustomImage-${userId}`);
-    if (savedImage) {
-      setCustomImage(savedImage);
+    // Send stabilize message to main process when focus mode changes
+    if (window.electron) {
+      // Small delay to avoid race conditions
+      const stabilizeTimer = setTimeout(() => {
+        window.electron.send('stabilize-window', { 
+          isFocusMode,
+          timestamp: Date.now()
+        });
+      }, 100);
+      
+      return () => clearTimeout(stabilizeTimer);
     }
-  }, [userId]);
+  }, [isFocusMode]);
   
   // Load saved whitelist from localStorage on initial mount
   useEffect(() => {
@@ -114,7 +110,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       let appName;
       if (typeof windowInfo === 'object') {
         // Get the most reliable identifier for the app
-        appName = windowInfo.owner || windowInfo.appName || extractAppName(windowInfo.title);
+        appName = windowInfo.owner?.name || windowInfo.appName || extractAppName(windowInfo.title);
         setCurrentActiveApp(appName);
       } else {
         appName = extractAppName(windowInfo);
@@ -336,44 +332,57 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return appNameMatches?.[1]?.trim() || windowTitle.trim();
   };
   
-  // Improved app matching against whitelist with better fuzzy matching
+  // Significantly improved app matching against whitelist with enhanced fuzzy matching
   const isAppInWhitelist = (appName: string, whitelist: string[]): boolean => {
     if (!appName) return false;
     
-    const normalizedAppName = appName.toLowerCase();
+    // Normalize the app name for better matching - lowercase and remove special characters
+    const normalizedAppName = appName.toLowerCase().replace(/[^\w\s.-]/g, '');
+    
+    // Try to extract filename or process name if it's an exe
+    const processMatch = normalizedAppName.match(/([^\\\/]+)(?:\.exe)?$/i);
+    const processName = processMatch ? processMatch[1].toLowerCase() : '';
     
     return whitelist.some(whitelistedApp => {
-      const normalizedWhitelistedApp = whitelistedApp.toLowerCase();
+      // Normalize whitelist entry
+      const normalizedWhitelistedApp = whitelistedApp.toLowerCase().replace(/[^\w\s.-]/g, '');
       
-      // Check exact matches
+      // Direct match
       if (normalizedAppName === normalizedWhitelistedApp) return true;
       
-      // Check if app name contains the whitelist entry
-      if (normalizedAppName.includes(normalizedWhitelistedApp)) return true;
-      
-      // Check if whitelist entry contains app name
-      if (normalizedWhitelistedApp.includes(normalizedAppName)) return true;
-      
-      // Check for process names (chrome.exe, etc)
-      if (normalizedAppName.includes('.exe') && 
-          normalizedWhitelistedApp.includes(normalizedAppName.replace('.exe', ''))) {
+      // Partial matches in either direction
+      if (normalizedAppName.includes(normalizedWhitelistedApp) || 
+          normalizedWhitelistedApp.includes(normalizedAppName)) {
         return true;
       }
       
-      // Check for bundle IDs (com.google.Chrome, etc)
+      // Process name matches (for .exe files)
+      if (processName && (
+          normalizedWhitelistedApp.includes(processName) || 
+          processName.includes(normalizedWhitelistedApp))) {
+        return true;
+      }
+      
+      // Match with bundle ID components (e.g., com.microsoft.vscode)
       if (activeWindowInfo && 
           activeWindowInfo.owner && 
           activeWindowInfo.owner.bundleId) {
         
         const bundleId = activeWindowInfo.owner.bundleId.toLowerCase();
+        const bundleParts = bundleId.split('.');
         
-        if (bundleId.includes(normalizedWhitelistedApp) || 
-            normalizedWhitelistedApp.includes(bundleId.split('.').pop() || '')) {
-          return true;
-        }
+        // Check all parts of the bundle ID (e.g., "microsoft", "vscode")
+        return bundleParts.some(part => 
+          part.includes(normalizedWhitelistedApp) || 
+          normalizedWhitelistedApp.includes(part));
       }
       
-      return false;
+      // Match window title components (split by spaces, dashes, etc)
+      const titleParts = normalizedAppName.split(/[\s-_\.]+/);
+      return titleParts.some(part => 
+        part.includes(normalizedWhitelistedApp) || 
+        normalizedWhitelistedApp.includes(part)
+      );
     });
   };
   
