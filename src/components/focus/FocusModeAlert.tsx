@@ -34,8 +34,8 @@ export function FocusModeAlert({
       console.log("FocusModeAlert: Dispatching focus popup event for:", appName);
       console.log("Using image URL:", imageUrl);
       
-      // Create unique notification ID with timestamp
-      const notificationId = `focus-alert-${appName}-${Date.now()}`;
+      // Create unique notification ID with timestamp and random value to ensure uniqueness
+      const notificationId = `focus-alert-${appName}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       
       // Trigger system-wide overlay popup with rich media
       window.electron.send('show-focus-popup', {

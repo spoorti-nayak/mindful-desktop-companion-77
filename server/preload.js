@@ -56,15 +56,12 @@ contextBridge.exposeInMainWorld('electron', {
 // Listen for active-window-changed from main and dispatch a custom event for the renderer
 ipcRenderer.on('active-window-changed', (event, windowInfo) => {
   try {
-    // Extract the title from the window info or use the whole object
-    const windowTitle = windowInfo?.title || (typeof windowInfo === 'string' ? windowInfo : '');
-    
-    // Dispatch a custom event that our React components can listen to
+    // Pass the complete window info object to the renderer
     window.dispatchEvent(new CustomEvent('active-window-changed', { 
-      detail: windowTitle 
+      detail: windowInfo 
     }));
     
-    console.log('Dispatched active-window-changed event with title:', windowTitle);
+    console.log('Dispatched active-window-changed event with info:', windowInfo);
   } catch (error) {
     console.error('Error dispatching active-window-changed event:', error);
   }

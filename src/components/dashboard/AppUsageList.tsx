@@ -7,7 +7,7 @@ import SystemTrayService from "@/services/SystemTrayService";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { Badge } from "@/components/ui/badge";
-import { Shield } from "lucide-react";
+import { Shield, CheckCircle, XCircle } from "lucide-react";
 
 interface AppUsageItem {
   name: string;
@@ -24,7 +24,7 @@ export function AppUsageList({ className }: AppUsageListProps) {
   const [appUsageData, setAppUsageData] = useState<AppUsageItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
-  const { isFocusMode, whitelist } = useFocusMode();
+  const { isFocusMode, whitelist, currentActiveApp, isCurrentAppWhitelisted } = useFocusMode();
   
   useEffect(() => {
     const systemTray = SystemTrayService.getInstance();
@@ -111,6 +111,34 @@ export function AppUsageList({ className }: AppUsageListProps) {
         )}
       </CardHeader>
       <CardContent>
+        {/* Live whitelist match preview - only show when focus mode is on */}
+        {isFocusMode && (
+          <div className={cn(
+            "mb-4 p-3 rounded-lg border",
+            isCurrentAppWhitelisted ? "bg-green-100/10 border-green-500/30" : "bg-red-100/10 border-red-500/30"
+          )}>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium mb-1">Current Active App</div>
+                <div className="font-medium">{currentActiveApp || "No active window"}</div>
+              </div>
+              <div>
+                {isCurrentAppWhitelisted ? (
+                  <Badge className="bg-green-500 text-white flex items-center">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Allowed
+                  </Badge>
+                ) : (
+                  <Badge className="bg-red-500 text-white flex items-center">
+                    <XCircle className="h-3 w-3 mr-1" />
+                    Blocked
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (

@@ -93,7 +93,7 @@ async function createWindow() {
     // Create a hidden notification window that will be used to display notifications on top
     createNotificationWindow();
     
-    // Create a hidden focus popup window for rich media popups
+    // Create a hidden focus popup window for rich media popups - using the updated settings
     createFocusPopupWindow();
     
     // Test notification on startup
@@ -149,38 +149,30 @@ function createFocusPopupWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
   
-  // Create a larger always-on-top window for rich media popups with updated settings
+  // Create a system-level always-on-top window for focus popups with the exact requested settings
   focusPopupWindow = new BrowserWindow({
     width: 500,
     height: 400,
     x: Math.floor((width - 500) / 2),
     y: Math.floor((height - 400) / 2),
+    alwaysOnTop: true,
     frame: false,
     transparent: true,
-    resizable: false,
-    skipTaskbar: true,
-    show: false,
-    alwaysOnTop: true,
     fullscreenable: false,
-    focusable: true, // Need this to be true to allow interaction with the popup
+    skipTaskbar: true,
+    focusable: false,
+    resizable: false,
+    show: false,
     webPreferences: {
-      nodeIntegration: false, // Keep isolation for security
-      contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      nodeIntegration: true,
+      contextIsolation: false
     }
   });
   
   // Load a blank HTML
   focusPopupWindow.loadURL('data:text/html;charset=utf-8,<html><body style="background: transparent;"></body></html>');
   
-  // Hide the window when it loses focus (user clicks away)
-  focusPopupWindow.on('blur', () => {
-    if (focusPopupWindow && !focusPopupWindow.isDestroyed()) {
-      focusPopupWindow.hide();
-    }
-  });
-  
-  console.log("Focus popup window created with enhanced settings");
+  console.log("Focus popup window created with system-level overlay settings");
 }
 
 function createTray() {
@@ -260,7 +252,7 @@ function startActiveWindowMonitoring() {
     }
     
     try {
-      const activeWindow = await activeWin(); // Updated usage for active-win
+      const activeWindow = await activeWin(); // Using active-win for better app detection
       const now = Date.now();
       
       if (activeWindow) {
@@ -276,12 +268,15 @@ function startActiveWindowMonitoring() {
         // Store current window info
         lastActiveWindow = activeWindow;
         
-        // Send to renderer process
+        // Send to renderer process with more detailed info
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('active-window-changed', {
             title: activeWindow.title,
             owner: activeWindow.owner?.name || 'Unknown',
             path: activeWindow.owner?.path || 'Unknown',
+            appName: activeWindow.owner?.name || 'Unknown',
+            bundleId: activeWindow.owner?.bundleId || '',
+            processId: activeWindow.owner?.processId || '',
             timeActive: timeInWindow
           });
         }
@@ -388,7 +383,7 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width, height } = primaryDisplay.workAreaSize;
     
-    // Center the popup window
+    // Center the popup window and make it visible on top of all windows
     if (focusPopupWindow) {
       // Position popup at the center of the screen
       focusPopupWindow.setPosition(
@@ -418,7 +413,7 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
         `;
       }
       
-      // Create HTML content for the rich media popup with animation
+      // Create HTML content for the rich media popup with animation - system level design
       const popupContent = `
         <html>
         <head>
@@ -522,11 +517,6 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
             
             function closeNotification() {
               clearTimeout(autoCloseTimeout);
-              // Send notification ID back to main process when dismissed
-              const notificationId = document.querySelector('.notification-id').textContent;
-              if (notificationId && window.electron) {
-                window.electron.send('notification-dismissed', notificationId);
-              }
               window.close();
             }
             
@@ -544,10 +534,11 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
       // Load the popup content and ensure it's shown on top
       focusPopupWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(popupContent)}`);
       
-      // Show the popup window and ensure it's on top
+      // Show the popup window, make it visible and force it to top
       focusPopupWindow.show();
-      focusPopupWindow.focus();
-      focusPopupWindow.moveTop(); // Ensure it's above all windows
+      focusPopupWindow.setAlwaysOnTop(true, 'screen-saver', 1); // Enforce maximum level of always on top
+      focusPopupWindow.moveTop();
+      focusPopupWindow.setSkipTaskbar(true);
       
       // Also send as a native notification (as fallback)
       if (Notification.isSupported()) {
@@ -579,7 +570,7 @@ function showFocusPopup(title, body, notificationId, mediaType = 'image', mediaC
         });
       }
       
-      console.log("Focus popup shown on top of all windows");
+      console.log("Focus popup shown as system-level overlay on top of all windows");
     }
   } catch (error) {
     console.error("Error showing focus popup:", error);
