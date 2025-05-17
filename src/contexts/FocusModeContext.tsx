@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import SystemTrayService from '@/services/SystemTrayService';
 import { toast } from "sonner";
@@ -851,7 +852,22 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     lastPopupShownTime.current = Date.now();
   }, [centerToast, dimInsteadOfBlock, userId, customImage]);
 
-  // ... keep existing code (the rest of the file)
-}
+  // Create the context value object
+  const contextValue: FocusModeContextType = {
+    isFocusMode,
+    toggleFocusMode,
+    whitelist,
+    addToWhitelist,
+    removeFromWhitelist,
+    dimInsteadOfBlock,
+    toggleDimOption,
+    currentActiveApp,
+    isCurrentAppWhitelisted
+  };
 
-export { FocusModeProvider };
+  return (
+    <FocusModeContext.Provider value={contextValue}>
+      {children}
+    </FocusModeContext.Provider>
+  );
+};
