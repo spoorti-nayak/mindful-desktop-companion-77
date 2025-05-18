@@ -32,7 +32,6 @@ export function FocusModeSettings() {
   } = useFocusMode();
   
   const { user } = useAuth();
-  // Use user?.id as userId, defaulting to 'guest' if not available
   const userId = user?.id || 'guest';
   
   const [newApp, setNewApp] = useState("");
@@ -54,7 +53,6 @@ export function FocusModeSettings() {
       addToWhitelist(newApp.trim());
       setNewApp("");
     } else if (currentActiveApp) {
-      // If no app name is entered but there is a current active app, add that
       addToWhitelist(currentActiveApp);
     }
   };

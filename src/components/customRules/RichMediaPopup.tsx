@@ -16,44 +16,6 @@ export function RichMediaPopup() {
   
   // Listen for rule-based popups and focus-mode popups
   useEffect(() => {
-    // Handler for rule-based popups
-    const handleShowCustomRulePopup = (event: CustomEvent<Rule>) => {
-      console.log("Received show-custom-rule-popup event", event.detail);
-      setCurrentRule(event.detail);
-      
-      // Set icon display based on rule type
-      setShowIcon(event.detail.name.toLowerCase().includes("focus"));
-      
-      // Choose display type based on rule condition or action
-      if (
-        event.detail.condition.type === "app_switch" || 
-        event.detail.name.toLowerCase().includes("focus")
-      ) {
-        setDisplayType('alert');
-      } else {
-        setDisplayType('dialog');
-      }
-      
-      setIsOpen(true);
-      setIsImageLoaded(false); // Reset image loaded state
-      
-      // Ensure the notification is shown system-wide
-      if (window.electron) {
-        window.electron.send('show-native-notification', {
-          title: event.detail.name,
-          body: event.detail.action.text,
-          notificationId: `custom-rule-${event.detail.id}`
-        });
-      }
-      
-      // Auto-dismiss if configured
-      if (event.detail.action.autoDismiss && event.detail.action.dismissTime) {
-        setTimeout(() => {
-          setIsOpen(false);
-        }, event.detail.action.dismissTime * 1000);
-      }
-    };
-
     // Enhanced handler for focus mode popups (from main process or focus mode context)
     const handleShowFocusPopup = (event: CustomEvent<{
       title: string;
@@ -112,10 +74,6 @@ export function RichMediaPopup() {
     };
     
     // Add event listeners
-    window.addEventListener('show-custom-rule-popup', 
-      handleShowCustomRulePopup as EventListener
-    );
-    
     window.addEventListener('show-focus-popup', 
       handleShowFocusPopup as EventListener
     );
@@ -133,9 +91,6 @@ export function RichMediaPopup() {
     );
     
     return () => {
-      window.removeEventListener('show-custom-rule-popup', 
-        handleShowCustomRulePopup as EventListener
-      );
       window.removeEventListener('show-focus-popup', 
         handleShowFocusPopup as EventListener
       );
@@ -235,14 +190,6 @@ export function RichMediaPopup() {
   // Render different container types based on the display type
   return (
     <AnimatePresence>
-      {displayType === 'dialog' && isOpen && (
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogContent className="min-w-[500px] p-0 overflow-hidden bg-background rounded-lg border shadow-lg animate-in fade-in-0 zoom-in-95">
-            {dialogContent}
-          </DialogContent>
-        </Dialog>
-      )}
-      
       {displayType === 'alert' && isOpen && (
         <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
           <AlertDialogContent className="min-w-[500px] p-0 overflow-hidden bg-background rounded-lg border shadow-lg animate-in fade-in-0 zoom-in-95">
