@@ -128,12 +128,14 @@ export function RichMediaPopup() {
   const dialogContent = (
     <>
       <div className="relative">
+        {/* Improved Image Display */}
         {currentRule.action.media?.type === 'image' && currentRule.action.media.content && (
-          <div className="w-full h-64 overflow-hidden">
+          <div className="w-full overflow-hidden flex justify-center">
             <img
               src={currentRule.action.media.content}
-              alt="Rule media"
-              className="w-full h-full object-cover"
+              alt="Focus reminder"
+              className="max-w-full h-auto object-contain rounded-t-lg"
+              style={{ maxHeight: '240px' }}
               onLoad={handleImageLoad}
               onError={handleImageError}
             />
@@ -141,13 +143,14 @@ export function RichMediaPopup() {
         )}
         
         {currentRule.action.media?.type === 'video' && currentRule.action.media.content && (
-          <div className="w-full h-64 overflow-hidden">
+          <div className="w-full overflow-hidden flex justify-center">
             <video
               src={currentRule.action.media.content}
               autoPlay
               muted
               loop
-              className="w-full h-full object-cover"
+              className="max-w-full h-auto object-contain rounded-t-lg"
+              style={{ maxHeight: '240px' }}
               onLoadedData={handleImageLoad}
               onError={handleImageError}
             />
@@ -192,7 +195,12 @@ export function RichMediaPopup() {
     <AnimatePresence>
       {displayType === 'alert' && isOpen && (
         <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
-          <AlertDialogContent className="min-w-[500px] p-0 overflow-hidden bg-background rounded-lg border shadow-lg animate-in fade-in-0 zoom-in-95">
+          <AlertDialogContent 
+            className="min-w-[500px] p-0 overflow-hidden bg-background rounded-lg border shadow-lg animate-in fade-in-0 zoom-in-95"
+            style={{ 
+              boxShadow: '0 10px 25px -5px rgba(26, 31, 44, 0.1), 0 8px 10px -6px rgba(26, 31, 44, 0.1)'
+            }}
+          >
             {dialogContent}
           </AlertDialogContent>
         </AlertDialog>
