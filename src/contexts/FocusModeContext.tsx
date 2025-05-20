@@ -934,12 +934,3 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     </FocusModeContext.Provider>
   );
 };
-
-// Utility functions
-export const useFocusMode = () => {
-  const context = useContext(FocusModeContext);
-  if (context === undefined) {
-    throw new Error('useFocusMode must be used within a FocusModeProvider');
-  }
-  return context;
-};
