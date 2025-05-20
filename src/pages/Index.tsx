@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { TopNav } from "@/components/layout/TopNav";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -11,6 +10,7 @@ import { Clock, Eye, Activity, Zap, Settings, BarChart3 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import SystemTrayService from "@/services/SystemTrayService";
+import { RichMediaPopup } from "@/components/customRules/RichMediaPopup";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -183,6 +183,8 @@ const Index = () => {
           </TabsContent>
         </Tabs>
       </div>
+      
+      <RichMediaPopup />
     </div>
   );
 };

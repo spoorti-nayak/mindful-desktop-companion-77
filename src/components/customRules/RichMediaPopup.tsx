@@ -4,15 +4,15 @@ import { AlertDialog, AlertDialogContent } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { X, Focus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useFocusMode } from "@/contexts/FocusModeContext";
 
-// Simplified popup component focused only on Focus Mode alerts
 export function RichMediaPopup() {
+  const { customImage, customText } = useFocusMode();
   const [isOpen, setIsOpen] = useState(false);
   const [notificationData, setNotificationData] = useState<{
     title: string;
     body: string;
     notificationId: string;
-    mediaContent?: string;
     appName?: string;
   } | null>(null);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
@@ -25,8 +25,6 @@ export function RichMediaPopup() {
       title: string;
       body: string;
       notificationId: string;
-      mediaType?: 'image' | 'video';
-      mediaContent?: string;
       appName?: string;
     }>) => {
       console.log("Received show-focus-popup event", event.detail);
@@ -51,14 +49,13 @@ export function RichMediaPopup() {
         title: event.detail.title,
         body: event.detail.body,
         notificationId: event.detail.notificationId,
-        mediaContent: event.detail.mediaContent,
         appName: event.detail.appName
       });
       
       setIsOpen(true);
       setIsImageLoaded(false);
       
-      console.log("Focus popup with media:", event.detail.mediaContent);
+      console.log("Opening focus popup for app:", event.detail.appName);
       
       // Auto-dismiss after 8 seconds
       setTimeout(() => {
@@ -109,7 +106,7 @@ export function RichMediaPopup() {
   };
   
   const handleImageError = () => {
-    console.error("Failed to load image:", notificationData?.mediaContent);
+    console.error("Failed to load image");
     setIsImageLoaded(true); // Still mark as loaded to show the dialog
   };
   
@@ -130,16 +127,6 @@ export function RichMediaPopup() {
   
   // Parse the body to separate system message from motivational text
   let systemMessage = notificationData.body;
-  let motivationalText = "";
-  
-  // Extract system message about whitelist and motivational text
-  const whitelistRegex = /You're outside your focus zone\..+not in your whitelist\./;
-  const match = notificationData.body.match(whitelistRegex);
-  
-  if (match) {
-    systemMessage = match[0];
-    motivationalText = notificationData.body.replace(systemMessage, "").trim();
-  }
   
   return (
     <AnimatePresence>
@@ -150,10 +137,10 @@ export function RichMediaPopup() {
             style={{ borderRadius: '12px' }}
           >
             {/* Image Display - At the top with proper styling */}
-            {notificationData.mediaContent && (
+            {customImage && (
               <div className="overflow-hidden flex justify-center w-full">
                 <img
-                  src={notificationData.mediaContent}
+                  src={customImage}
                   alt="Focus reminder"
                   className="w-full object-contain max-h-[240px] rounded-t-lg"
                   onLoad={handleImageLoad}
@@ -177,7 +164,7 @@ export function RichMediaPopup() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Focus className="h-5 w-5 text-amber-400" />
-                  <h3 className="text-xl font-semibold">Focus Mode Alert</h3>
+                  <h3 className="text-xl font-semibold">{notificationData.title}</h3>
                 </div>
                 
                 {/* System message about whitelist */}
@@ -186,9 +173,9 @@ export function RichMediaPopup() {
                 </p>
                 
                 {/* Motivational message if present */}
-                {motivationalText && (
+                {customText && (
                   <p className="text-sm font-medium pt-2 italic">
-                    "{motivationalText}"
+                    "{customText}"
                   </p>
                 )}
               </div>
