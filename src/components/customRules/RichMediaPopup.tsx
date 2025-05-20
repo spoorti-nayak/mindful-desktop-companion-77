@@ -1,35 +1,37 @@
 
 import React, { useEffect, useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { X, Focus } from "lucide-react";
-import { Rule } from "@/contexts/CustomRulesContext";
 import { motion, AnimatePresence } from "framer-motion";
 
+// Simplified popup component focused only on Focus Mode alerts
 export function RichMediaPopup() {
   const [isOpen, setIsOpen] = useState(false);
-  const [currentRule, setCurrentRule] = useState<Rule | null>(null);
-  const [displayType, setDisplayType] = useState<'dialog' | 'alert'>('dialog');
+  const [notificationData, setNotificationData] = useState<{
+    title: string;
+    body: string;
+    notificationId: string;
+    mediaContent?: string;
+    appName?: string;
+  } | null>(null);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
-  const [showIcon, setShowIcon] = useState(false);
   const [lastShownAppId, setLastShownAppId] = useState<string | null>(null);
   
-  // Listen for rule-based popups and focus-mode popups
+  // Listen for focus-mode popups
   useEffect(() => {
-    // Enhanced handler for focus mode popups (from main process or focus mode context)
+    // Handler for focus mode popups
     const handleShowFocusPopup = (event: CustomEvent<{
       title: string;
       body: string;
       notificationId: string;
-      mediaType: 'image' | 'video';
-      mediaContent: string;
+      mediaType?: 'image' | 'video';
+      mediaContent?: string;
       appName?: string;
     }>) => {
       console.log("Received show-focus-popup event", event.detail);
       
-      // Check if this is for the same app we just showed a popup for
-      // Extract app ID from the notification ID to prevent duplicate popups
+      // Extract app ID to prevent duplicate popups
       const appIdMatch = event.detail.notificationId.match(/focus-mode-(.*?)-\d+/);
       const currentAppId = appIdMatch ? appIdMatch[1] : null;
       
@@ -44,33 +46,17 @@ export function RichMediaPopup() {
         setLastShownAppId(currentAppId);
       }
       
-      // Create a synthetic rule object to reuse the same popup system
-      const focusRule: Rule = {
-        id: event.detail.notificationId,
-        name: event.detail.title || "Focus Mode Alert",
-        condition: {
-          type: "app_switch",
-          threshold: 0, 
-          timeWindow: 0
-        },
-        action: {
-          type: "popup",
-          text: event.detail.body || `You're outside your focus zone. ${event.detail.appName || "This app"} is not in your whitelist.`,
-          media: {
-            type: event.detail.mediaType || 'image',
-            content: event.detail.mediaContent
-          },
-          autoDismiss: true,
-          dismissTime: 8
-        },
-        isActive: true
-      };
+      // Set notification data
+      setNotificationData({
+        title: event.detail.title,
+        body: event.detail.body,
+        notificationId: event.detail.notificationId,
+        mediaContent: event.detail.mediaContent,
+        appName: event.detail.appName
+      });
       
-      setCurrentRule(focusRule);
-      setDisplayType('alert'); // Always use alert dialog for focus popups for maximum visibility
-      setShowIcon(true); // Always show focus icon for focus popups
       setIsOpen(true);
-      setIsImageLoaded(false); // Reset image loaded state
+      setIsImageLoaded(false);
       
       console.log("Focus popup with media:", event.detail.mediaContent);
       
@@ -79,8 +65,7 @@ export function RichMediaPopup() {
         setIsOpen(false);
       }, 8000);
       
-      // Now we send a confirmation back that the popup was displayed
-      // This helps with popup coordination in the main process
+      // Send confirmation that popup was displayed
       const confirmEvent = new CustomEvent('focus-popup-displayed', {
         detail: {
           notificationId: event.detail.notificationId,
@@ -90,20 +75,18 @@ export function RichMediaPopup() {
       window.dispatchEvent(confirmEvent);
     };
     
-    // Add event listeners
-    window.addEventListener('show-focus-popup', 
-      handleShowFocusPopup as EventListener
-    );
-    
     // Handle notification dismissed events
     const handleNotificationDismissed = (event: CustomEvent<string>) => {
       console.log("Notification dismissed event received:", event.detail);
-      if (currentRule && event.detail === currentRule.id) {
+      if (notificationData && event.detail === notificationData.notificationId) {
         setIsOpen(false);
-        // Reset last shown app ID when popup is dismissed
         setLastShownAppId(null);
       }
     };
+    
+    window.addEventListener('show-focus-popup', 
+      handleShowFocusPopup as EventListener
+    );
     
     window.addEventListener('notification-dismissed', 
       handleNotificationDismissed as EventListener
@@ -117,7 +100,7 @@ export function RichMediaPopup() {
         handleNotificationDismissed as EventListener
       );
     };
-  }, [currentRule, lastShownAppId]);
+  }, [lastShownAppId, notificationData]);
   
   // Handle image loading
   const handleImageLoad = () => {
@@ -126,123 +109,96 @@ export function RichMediaPopup() {
   };
   
   const handleImageError = () => {
-    console.error("Failed to load image:", currentRule?.action.media?.content);
+    console.error("Failed to load image:", notificationData?.mediaContent);
     setIsImageLoaded(true); // Still mark as loaded to show the dialog
   };
   
   const handleDismiss = () => {
     setIsOpen(false);
-    setLastShownAppId(null); // Reset last shown app ID when popup is dismissed
+    setLastShownAppId(null);
     
     // Dispatch an event that the notification was dismissed
-    if (currentRule) {
+    if (notificationData) {
       const dismissEvent = new CustomEvent('notification-dismissed', {
-        detail: currentRule.id
+        detail: notificationData.notificationId
       });
       window.dispatchEvent(dismissEvent);
     }
   };
   
-  if (!currentRule) return null;
+  if (!notificationData) return null;
   
-  // Get app name from notification ID
-  const appNameFromRule = currentRule.action.text.match(/([^.]+) is not in your whitelist/)?.[1] || "This app";
-  
-  // Extract motivational text (everything after the standard message)
-  const standardMessage = `You're outside your focus zone. ${appNameFromRule} is not in your whitelist.`;
+  // Parse the body to separate system message from motivational text
+  let systemMessage = notificationData.body;
   let motivationalText = "";
   
-  if (currentRule.action.text !== standardMessage && 
-      currentRule.action.text.includes(standardMessage)) {
-    motivationalText = currentRule.action.text.replace(standardMessage, "").trim();
-  } else if (!currentRule.action.text.includes("not in your whitelist")) {
-    motivationalText = currentRule.action.text;
+  // Extract system message about whitelist and motivational text
+  const whitelistRegex = /You're outside your focus zone\..+not in your whitelist\./;
+  const match = notificationData.body.match(whitelistRegex);
+  
+  if (match) {
+    systemMessage = match[0];
+    motivationalText = notificationData.body.replace(systemMessage, "").trim();
   }
   
-  const dialogContent = (
-    <>
-      {/* Image/Video Display - Now at the top with proper styling */}
-      {currentRule.action.media?.type === 'image' && currentRule.action.media.content && (
-        <div className="overflow-hidden flex justify-center w-full">
-          <img
-            src={currentRule.action.media.content}
-            alt="Focus reminder"
-            className="w-full max-h-[240px] object-contain rounded-t-lg"
-            onLoad={handleImageLoad}
-            onError={handleImageError}
-          />
-        </div>
-      )}
-      
-      {currentRule.action.media?.type === 'video' && currentRule.action.media.content && (
-        <div className="overflow-hidden flex justify-center w-full">
-          <video
-            src={currentRule.action.media.content}
-            autoPlay
-            muted
-            loop
-            className="w-full max-h-[240px] object-contain rounded-t-lg"
-            onLoadedData={handleImageLoad}
-            onError={handleImageError}
-          />
-        </div>
-      )}
-      
-      <div className="p-6 space-y-4 relative">
-        {/* Close button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-2 right-2 rounded-full bg-background/80 hover:bg-background/90"
-          onClick={handleDismiss}
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </Button>
-        
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            {showIcon && (
-              <Focus className="h-5 w-5 text-amber-400" />
-            )}
-            <h3 className="text-xl font-semibold">Focus Mode Alert</h3>
-          </div>
-          
-          {/* Main alert message */}
-          <p className="text-muted-foreground">
-            {standardMessage}
-          </p>
-          
-          {/* Motivational message if present */}
-          {motivationalText && (
-            <p className="text-sm font-medium pt-2 italic">
-              "{motivationalText}"
-            </p>
-          )}
-        </div>
-        
-        <div className="flex justify-end pt-2">
-          <Button onClick={handleDismiss}>
-            Dismiss
-          </Button>
-        </div>
-      </div>
-    </>
-  );
-  
-  // Render different container types based on the display type
   return (
     <AnimatePresence>
-      {displayType === 'alert' && isOpen && (
+      {isOpen && (
         <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
           <AlertDialogContent 
-            className="min-w-[500px] p-0 overflow-hidden bg-background rounded-lg border animate-in fade-in-0 zoom-in-95"
-            style={{ 
-              boxShadow: '0 10px 25px -5px rgba(26, 31, 44, 0.2), 0 8px 10px -6px rgba(26, 31, 44, 0.15)',
-              borderRadius: '12px'
-            }}
+            className="p-0 overflow-hidden bg-background rounded-lg border shadow-lg max-w-md w-full"
+            style={{ borderRadius: '12px' }}
           >
-            {dialogContent}
+            {/* Image Display - At the top with proper styling */}
+            {notificationData.mediaContent && (
+              <div className="overflow-hidden flex justify-center w-full">
+                <img
+                  src={notificationData.mediaContent}
+                  alt="Focus reminder"
+                  className="w-full object-contain max-h-[240px] rounded-t-lg"
+                  onLoad={handleImageLoad}
+                  onError={handleImageError}
+                />
+              </div>
+            )}
+            
+            <div className="p-6 space-y-4 relative">
+              {/* Close button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2 rounded-full bg-background/80 hover:bg-background/90"
+                onClick={handleDismiss}
+              >
+                <X className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </Button>
+              
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Focus className="h-5 w-5 text-amber-400" />
+                  <h3 className="text-xl font-semibold">Focus Mode Alert</h3>
+                </div>
+                
+                {/* System message about whitelist */}
+                <p className="text-muted-foreground">
+                  {systemMessage}
+                </p>
+                
+                {/* Motivational message if present */}
+                {motivationalText && (
+                  <p className="text-sm font-medium pt-2 italic">
+                    "{motivationalText}"
+                  </p>
+                )}
+              </div>
+              
+              <div className="flex justify-end pt-2">
+                <Button onClick={handleDismiss}>
+                  Dismiss
+                </Button>
+              </div>
+            </div>
           </AlertDialogContent>
         </AlertDialog>
       )}

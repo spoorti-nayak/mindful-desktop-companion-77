@@ -54,6 +54,7 @@ const Index = () => {
     // Listen for eye break updates - track completed eye breaks
     const handleEyeBreakUpdate = (event: CustomEvent<{completed: boolean}>) => {
       if (event.detail.completed) {
+        console.log("Eye break completed, updating counter");
         setEyeBreaks(prev => prev + 1);
       }
     };
@@ -62,6 +63,19 @@ const Index = () => {
     systemTray.addScreenTimeListener(handleScreenTimeUpdate);
     systemTray.addFocusScoreListener(handleFocusScoreUpdate);
     window.addEventListener('eye-break-completed', handleEyeBreakUpdate as EventListener);
+    
+    // Load initial eye breaks count
+    const savedEyeBreaks = localStorage.getItem(`eyeBreaksCount-${userId}`);
+    if (savedEyeBreaks) {
+      try {
+        const count = parseInt(savedEyeBreaks);
+        if (!isNaN(count)) {
+          setEyeBreaks(count);
+        }
+      } catch (e) {
+        console.error("Failed to parse eye breaks count:", e);
+      }
+    }
     
     // Send request for user-specific data
     if (window.electron) {
@@ -73,14 +87,19 @@ const Index = () => {
       setIsLoading(false);
     }, 1500);
     
-    // Clean up listeners
+    // Save eye breaks count when it changes
     return () => {
       systemTray.removeScreenTimeListener(handleScreenTimeUpdate);
       systemTray.removeFocusScoreListener(handleFocusScoreUpdate);
       window.removeEventListener('eye-break-completed', handleEyeBreakUpdate as EventListener);
       clearTimeout(loadingTimeout);
+      
+      // Save eye breaks count
+      if (eyeBreaks > 0) {
+        localStorage.setItem(`eyeBreaksCount-${userId}`, eyeBreaks.toString());
+      }
     };
-  }, [user]);
+  }, [user, eyeBreaks]);
   
   // Format focus score for display
   const formatFocusScore = (score: number | null): string | null => {
@@ -133,7 +152,7 @@ const Index = () => {
               />
               <StatCard
                 title="Eye Breaks"
-                value={eyeBreaks}
+                value={eyeBreaks > 0 ? eyeBreaks : 0}
                 icon={<Eye />}
                 description="Eye care breaks taken today"
               />
@@ -147,7 +166,7 @@ const Index = () => {
             </div>
 
             <div className="mt-6 grid gap-6 md:grid-cols-2">
-              <ActivityChart emptyState={false} /> {/* Changed to show real data */}
+              <ActivityChart emptyState={false} />
               <AppUsageList />
             </div>
           </TabsContent>

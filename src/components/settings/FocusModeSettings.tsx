@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -8,10 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useFocusMode } from "@/contexts/FocusModeContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { X, Plus, Upload, Image, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { X, Plus, Upload, Image, CheckCircle, XCircle, AlertCircle, Eye } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 
 export function FocusModeSettings() {
   const { 
@@ -39,6 +40,7 @@ export function FocusModeSettings() {
   // Custom alert settings
   const [showImageDialog, setShowImageDialog] = useState(false);
   const [editingText, setEditingText] = useState(customText || "");
+  const [previewText, setPreviewText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Update editing text when customText changes
@@ -47,6 +49,20 @@ export function FocusModeSettings() {
       setEditingText(customText);
     }
   }, [customText]);
+
+  // Format the text for preview/saving to include both parts
+  const formatFullText = (text: string): string => {
+    // Make sure we always have the default system message
+    const systemMessage = "You're outside your focus zone. {app} is not in your whitelist.";
+    
+    // If the provided text already contains the system message, return as is
+    if (text.includes(systemMessage)) {
+      return text;
+    }
+    
+    // Otherwise append the motivational text to the system message
+    return `${systemMessage} ${text}`;
+  };
   
   const handleAddToWhitelist = () => {
     if (newApp.trim()) {
@@ -60,6 +76,7 @@ export function FocusModeSettings() {
   const handleAddCurrentApp = () => {
     if (currentActiveApp) {
       addToWhitelist(currentActiveApp);
+      toast.success(`Added ${currentActiveApp} to whitelist`);
     }
   };
   
@@ -69,7 +86,13 @@ export function FocusModeSettings() {
       
       // Validate file is an image
       if (!file.type.startsWith('image/')) {
-        alert('Please upload an image file');
+        toast.error('Please upload an image file (PNG, JPG, WebP)');
+        return;
+      }
+      
+      // Check file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image is too large (max 5MB)');
         return;
       }
       
@@ -78,6 +101,7 @@ export function FocusModeSettings() {
       updateCustomImage(imageUrl);
       
       setShowImageDialog(false);
+      toast.success('Image updated successfully');
       
       // Show preview after a short delay
       setTimeout(() => {
@@ -94,11 +118,16 @@ export function FocusModeSettings() {
   
   const clearCustomImage = () => {
     updateCustomImage(null);
+    toast.info('Image removed');
   };
   
   const handleUpdateCustomText = () => {
     if (editingText) {
-      updateCustomText(editingText);
+      // Format the text to include the system message
+      const fullText = formatFullText(editingText);
+      updateCustomText(fullText);
+      
+      toast.success('Message updated');
       
       // Show preview after updating text
       setTimeout(() => {
@@ -115,34 +144,131 @@ export function FocusModeSettings() {
           Control which applications and websites you can access during focus sessions
         </CardDescription>
       </CardHeader>
+      
       <CardContent className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="focus-mode">Enable Focus Mode</Label>
-            <p className="text-sm text-muted-foreground">
-              Block or dim non-whitelisted apps and websites
-            </p>
+        {/* Main Controls */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="focus-mode">Enable Focus Mode</Label>
+              <p className="text-sm text-muted-foreground">
+                Block or dim non-whitelisted apps and websites
+              </p>
+            </div>
+            <Switch 
+              id="focus-mode" 
+              checked={isFocusMode} 
+              onCheckedChange={toggleFocusMode}
+            />
           </div>
-          <Switch 
-            id="focus-mode" 
-            checked={isFocusMode} 
-            onCheckedChange={toggleFocusMode}
-          />
-        </div>
 
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label htmlFor="dim-mode">Dim instead of block</Label>
-            <p className="text-sm text-muted-foreground">
-              Dim screen when using non-whitelisted apps instead of blocking them
-            </p>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="dim-mode">Dim instead of block</Label>
+              <p className="text-sm text-muted-foreground">
+                Dim screen when using non-whitelisted apps instead of blocking them
+              </p>
+            </div>
+            <Switch 
+              id="dim-mode" 
+              checked={dimInsteadOfBlock} 
+              onCheckedChange={toggleDimOption}
+            />
           </div>
-          <Switch 
-            id="dim-mode" 
-            checked={dimInsteadOfBlock} 
-            onCheckedChange={toggleDimOption}
-          />
         </div>
+        
+        <Separator />
+        
+        {/* Custom Focus Mode Alert Settings */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium">Focus Mode Alert</h3>
+          <p className="text-sm text-muted-foreground">
+            Customize the popup that appears when you use non-whitelisted apps
+          </p>
+          
+          {/* Custom notification image */}
+          <div className="space-y-2">
+            <Label>Custom Image</Label>
+            
+            <div className="flex flex-col space-y-3">
+              {customImage ? (
+                <div className="relative border rounded-lg overflow-hidden">
+                  <img 
+                    src={customImage} 
+                    alt="Custom focus mode image" 
+                    className="w-full h-40 object-contain bg-black/5"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-2 right-2 h-7 w-7 rounded-full"
+                    onClick={clearCustomImage}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div 
+                  className="border-2 border-dashed border-muted-foreground/20 rounded-lg p-8 flex flex-col items-center justify-center space-y-2 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => setShowImageDialog(true)}
+                >
+                  <Image className="h-10 w-10 text-muted-foreground/60" />
+                  <p className="text-sm text-center text-muted-foreground">
+                    No image selected<br />
+                    Click to upload an image
+                  </p>
+                </div>
+              )}
+              
+              <div className="flex space-x-2">
+                <Button 
+                  onClick={() => setShowImageDialog(true)}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  {customImage ? 'Change Image' : 'Upload Image'}
+                </Button>
+                
+                <Button
+                  onClick={testFocusModePopup}
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1"
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Preview Alert
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Custom notification text */}
+          <div className="space-y-2">
+            <Label htmlFor="custom-text">Motivational Message (Optional)</Label>
+            <Textarea
+              id="custom-text"
+              placeholder="Stay focused! You can do this."
+              value={editingText.replace("You're outside your focus zone. {app} is not in your whitelist.", "").trim()}
+              onChange={(e) => setEditingText(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+            <p className="text-xs text-muted-foreground">
+              This message will appear below the standard alert text
+            </p>
+            <Button 
+              onClick={handleUpdateCustomText} 
+              variant="secondary" 
+              size="sm"
+            >
+              Save Message
+            </Button>
+          </div>
+        </div>
+        
+        <Separator />
         
         {/* Live Whitelist Match Preview */}
         <div className="space-y-2">
@@ -203,80 +329,7 @@ export function FocusModeSettings() {
           </div>
         </div>
         
-        {/* Custom Focus Mode Alert Settings */}
-        <div className="space-y-4 border rounded-lg p-4">
-          <h3 className="text-lg font-medium">Focus Mode Alert Settings</h3>
-          
-          {/* Custom notification text */}
-          <div className="space-y-2">
-            <Label htmlFor="custom-text">Alert Message</Label>
-            <Textarea
-              id="custom-text"
-              placeholder="You're outside your focus zone. {app} is not in your whitelist."
-              value={editingText}
-              onChange={(e) => setEditingText(e.target.value)}
-              rows={3}
-              className="resize-none"
-            />
-            <p className="text-xs text-muted-foreground">
-              Use {'{app}'} to include the app name in your message
-            </p>
-            <Button 
-              onClick={handleUpdateCustomText} 
-              variant="secondary" 
-              size="sm"
-            >
-              Save Message
-            </Button>
-          </div>
-          
-          {/* Custom notification image */}
-          <div className="space-y-2">
-            <Label>Focus Mode Alert Image</Label>
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Custom image for focus mode alerts
-              </p>
-              <div className="space-x-2">
-                <Button 
-                  onClick={() => setShowImageDialog(true)}
-                  variant="outline"
-                  size="sm"
-                >
-                  <Image className="h-4 w-4 mr-2" />
-                  {customImage ? 'Change Image' : 'Set Image'}
-                </Button>
-                
-                <Button
-                  onClick={testFocusModePopup}
-                  variant="secondary"
-                  size="sm"
-                >
-                  Preview Alert
-                </Button>
-              </div>
-            </div>
-            
-            {customImage && (
-              <div className="mt-2 relative">
-                <img 
-                  src={customImage} 
-                  alt="Custom notification" 
-                  className="w-full h-32 object-cover rounded-md border border-border"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute top-2 right-2 h-6 w-6 rounded-full"
-                  onClick={clearCustomImage}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-        
+        {/* Whitelist Management */}
         <div className="space-y-4">
           <Label>Manage Whitelist</Label>
           
@@ -299,9 +352,9 @@ export function FocusModeSettings() {
             </Button>
           </div>
           
-          <div className="space-y-2 max-h-40 overflow-y-auto">
+          <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2">
             {whitelist.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">
+              <p className="text-sm text-muted-foreground py-2 text-center">
                 No apps in whitelist. Add apps that you want to allow during Focus Mode.
               </p>
             ) : (
@@ -315,7 +368,7 @@ export function FocusModeSettings() {
                       "bg-secondary/50"
                   )}
                 >
-                  <span>{app}</span>
+                  <span className="text-sm">{app}</span>
                   <Button 
                     variant="ghost" 
                     size="sm" 
@@ -333,7 +386,7 @@ export function FocusModeSettings() {
         <input 
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/png,image/jpeg,image/webp"
           style={{ display: 'none' }}
           onChange={handleFileChange}
         />
@@ -355,7 +408,7 @@ export function FocusModeSettings() {
                   Click to select an image, or drag and drop
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  JPG, PNG, GIF up to 5MB
+                  JPG, PNG, WebP up to 5MB
                 </p>
               </div>
             </div>
