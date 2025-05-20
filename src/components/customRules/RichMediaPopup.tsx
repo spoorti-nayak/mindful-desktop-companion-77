@@ -14,6 +14,7 @@ export function RichMediaPopup() {
     body: string;
     notificationId: string;
     appName?: string;
+    mediaContent?: string;
   } | null>(null);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [lastShownAppId, setLastShownAppId] = useState<string | null>(null);
@@ -26,6 +27,8 @@ export function RichMediaPopup() {
       body: string;
       notificationId: string;
       appName?: string;
+      mediaType?: string;
+      mediaContent?: string;
     }>) => {
       console.log("Received show-focus-popup event", event.detail);
       
@@ -44,18 +47,20 @@ export function RichMediaPopup() {
         setLastShownAppId(currentAppId);
       }
       
-      // Set notification data
+      // Set notification data - Use the mediaContent from the event if provided
       setNotificationData({
         title: event.detail.title,
         body: event.detail.body,
         notificationId: event.detail.notificationId,
-        appName: event.detail.appName
+        appName: event.detail.appName,
+        mediaContent: event.detail.mediaContent
       });
       
       setIsOpen(true);
       setIsImageLoaded(false);
       
       console.log("Opening focus popup for app:", event.detail.appName);
+      console.log("With custom media:", event.detail.mediaContent || "None provided");
       
       // Auto-dismiss after 8 seconds
       setTimeout(() => {
@@ -125,8 +130,8 @@ export function RichMediaPopup() {
   
   if (!notificationData) return null;
   
-  // Parse the body to separate system message from motivational text
-  let systemMessage = notificationData.body;
+  // Determine which image to display - prefer the one from the event, fallback to context
+  const displayImage = notificationData.mediaContent || customImage;
   
   return (
     <AnimatePresence>
@@ -136,11 +141,11 @@ export function RichMediaPopup() {
             className="p-0 overflow-hidden bg-background rounded-lg border shadow-lg max-w-md w-full"
             style={{ borderRadius: '12px' }}
           >
-            {/* Image Display - At the top with proper styling */}
-            {customImage && (
+            {/* Image Display - Use the mediaContent from notification or fallback to context */}
+            {displayImage && (
               <div className="overflow-hidden flex justify-center w-full">
                 <img
-                  src={customImage}
+                  src={displayImage}
                   alt="Focus reminder"
                   className="w-full object-contain max-h-[240px] rounded-t-lg"
                   onLoad={handleImageLoad}
@@ -169,13 +174,13 @@ export function RichMediaPopup() {
                 
                 {/* System message about whitelist */}
                 <p className="text-muted-foreground">
-                  {systemMessage}
+                  {notificationData.body}
                 </p>
                 
-                {/* Motivational message if present */}
-                {customText && (
+                {/* Motivational message if present in context and not already in body */}
+                {customText && !notificationData.body.includes(customText) && (
                   <p className="text-sm font-medium pt-2 italic">
-                    "{customText}"
+                    "{customText.replace("You're outside your focus zone. {app} is not in your whitelist.", "").trim()}"
                   </p>
                 )}
               </div>

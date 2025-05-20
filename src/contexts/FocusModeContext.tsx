@@ -90,21 +90,28 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Load custom text and image on initial mount
   useEffect(() => {
+    console.log("Loading focus mode preferences for user:", userId);
+    
     const savedCustomText = localStorage.getItem(`focusModeCustomText-${userId}`);
     if (savedCustomText) {
+      console.log("Found saved custom text:", savedCustomText);
       setCustomText(savedCustomText);
     } else {
       // Default text
-      setCustomText("You're outside your focus zone. This app is not in your whitelist.");
-      localStorage.setItem(`focusModeCustomText-${userId}`, "You're outside your focus zone. This app is not in your whitelist.");
+      const defaultText = "You're outside your focus zone. {app} is not in your whitelist.";
+      console.log("Setting default custom text:", defaultText);
+      setCustomText(defaultText);
+      localStorage.setItem(`focusModeCustomText-${userId}`, defaultText);
     }
 
     const savedCustomImage = localStorage.getItem(`focusModeCustomImage-${userId}`);
     if (savedCustomImage) {
+      console.log("Found saved custom image URL:", savedCustomImage);
       setCustomImage(savedCustomImage);
     } else {
       // Default image
       const defaultImage = 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b';
+      console.log("Setting default custom image:", defaultImage);
       setCustomImage(defaultImage);
       localStorage.setItem(`focusModeCustomImage-${userId}`, defaultImage);
     }
@@ -836,12 +843,14 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     
     console.log("Handling non-whitelisted app:", appName);
+    console.log("Using custom image:", customImage);
+    console.log("Using custom text:", customText);
     
     // Update tracking to remember we've shown notification for this app
     setLastNotifiedApp(appName);
     
     // Get the custom image and text from state
-    const imageUrl = customImage || null; // Don't use a default image
+    const imageUrl = customImage; // Don't use a default image
     const alertText = customText || `You're outside your focus zone. ${appName} is not in your whitelist.`;
     
     // Set current alert app name and show the alert
@@ -863,7 +872,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     });
     
-    console.log("Dispatching focus popup event");
+    console.log("Dispatching focus popup event with image:", imageUrl);
     window.dispatchEvent(focusRuleEvent);
     
     // If we're in dim mode, apply dimming effect to the screen
@@ -879,7 +888,9 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Test the rich media focus mode popup
   const testFocusModePopup = useCallback(() => {
     // Get the custom image from state
-    const imageUrl = customImage || 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b';
+    console.log("Testing focus mode popup with custom image:", customImage);
+    
+    const imageUrl = customImage;
     const alertText = customText || "You're outside your focus zone. This app is not in your whitelist.";
     const testApp = currentActiveApp || "Test App";
     
@@ -897,7 +908,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     window.dispatchEvent(testEvent);
   }, [customImage, customText, currentActiveApp]);
-
+  
   // Create the context value object
   const contextValue: FocusModeContextType = {
     isFocusMode,
@@ -921,4 +932,13 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       {children}
     </FocusModeContext.Provider>
   );
+};
+
+// Utility functions
+export const useFocusMode = () => {
+  const context = useContext(FocusModeContext);
+  if (context === undefined) {
+    throw new Error('useFocusMode must be used within a FocusModeProvider');
+  }
+  return context;
 };
