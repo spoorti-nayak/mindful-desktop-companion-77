@@ -172,17 +172,10 @@ export function RichMediaPopup() {
                   <h3 className="text-xl font-semibold">{notificationData.title}</h3>
                 </div>
                 
-                {/* System message about whitelist */}
+                {/* Message about whitelist - display exactly what's provided in the body */}
                 <p className="text-muted-foreground">
                   {notificationData.body}
                 </p>
-                
-                {/* Motivational message if present in context and not already in body */}
-                {customText && !notificationData.body.includes(customText) && (
-                  <p className="text-sm font-medium pt-2 italic">
-                    "{customText.replace("You're outside your focus zone. {app} is not in your whitelist.", "").trim()}"
-                  </p>
-                )}
               </div>
               
               <div className="flex justify-end pt-2">

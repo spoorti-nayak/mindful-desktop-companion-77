@@ -1,4 +1,3 @@
-
 // This service handles system tray functionality and active window monitoring
 
 class SystemTrayService {
@@ -691,16 +690,20 @@ class SystemTrayService {
     
     this.notificationThrottleMap.set(appName, now);
     
-    const message = `You're outside your focus zone. ${appName} is not in your whitelist.`;
+    // No longer create our own message - we'll use the custom one from FocusMode context
+    // Let the FocusModeAlert component handle this via events
     
-    if (this.isDesktopApp && window.electron) {
-      console.log("Sending focus mode violation notification via IPC");
-      window.electron.send('show-native-notification', {
-        title: "Focus Mode Alert", 
-        body: message,
-        notificationId: notificationId
-      });
-    }
+    const focusPopupEvent = new CustomEvent('show-focus-popup', { 
+      detail: {
+        title: "Focus Mode Alert",
+        notificationId: notificationId,
+        appName: appName
+      }
+    });
+    
+    // Dispatch the event to trigger the RichMediaPopup
+    console.log(`Dispatching focus popup event from SystemTrayService for app: ${appName}`);
+    window.dispatchEvent(focusPopupEvent);
     
     // Apply dimming effect if that option is selected
     if (this.dimInsteadOfBlock) {
@@ -710,8 +713,6 @@ class SystemTrayService {
       // In a real implementation, we would block the app via Electron
       console.log("Blocking non-whitelisted app:", appName);
     }
-    
-    this.listeners.forEach(listener => listener(message, true));
   }
 
   private notifyEyeCare(): void {
