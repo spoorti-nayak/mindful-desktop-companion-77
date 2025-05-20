@@ -26,6 +26,7 @@ const Index = () => {
   // Subscribe to real-time data updates
   useEffect(() => {
     const systemTray = SystemTrayService.getInstance();
+    const userId = user?.id || 'guest';
     
     // Get initial screen time
     const initialScreenTime = systemTray.getFormattedScreenTime();
@@ -50,9 +51,22 @@ const Index = () => {
       setIsLoading(false);
     };
     
+    // Listen for eye break updates - track completed eye breaks
+    const handleEyeBreakUpdate = (event: CustomEvent<{completed: boolean}>) => {
+      if (event.detail.completed) {
+        setEyeBreaks(prev => prev + 1);
+      }
+    };
+    
     // Add listeners
     systemTray.addScreenTimeListener(handleScreenTimeUpdate);
     systemTray.addFocusScoreListener(handleFocusScoreUpdate);
+    window.addEventListener('eye-break-completed', handleEyeBreakUpdate as EventListener);
+    
+    // Send request for user-specific data
+    if (window.electron) {
+      window.electron.send('get-user-data', { userId });
+    }
     
     // Set loading state false after a delay even if no data
     const loadingTimeout = setTimeout(() => {
@@ -63,9 +77,10 @@ const Index = () => {
     return () => {
       systemTray.removeScreenTimeListener(handleScreenTimeUpdate);
       systemTray.removeFocusScoreListener(handleFocusScoreUpdate);
+      window.removeEventListener('eye-break-completed', handleEyeBreakUpdate as EventListener);
       clearTimeout(loadingTimeout);
     };
-  }, []);
+  }, [user]);
   
   // Format focus score for display
   const formatFocusScore = (score: number | null): string | null => {
@@ -132,7 +147,7 @@ const Index = () => {
             </div>
 
             <div className="mt-6 grid gap-6 md:grid-cols-2">
-              <ActivityChart emptyState={true} />
+              <ActivityChart emptyState={false} /> {/* Changed to show real data */}
               <AppUsageList />
             </div>
           </TabsContent>

@@ -13,6 +13,7 @@ export function RichMediaPopup() {
   const [displayType, setDisplayType] = useState<'dialog' | 'alert'>('dialog');
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [showIcon, setShowIcon] = useState(false);
+  const [lastShownAppId, setLastShownAppId] = useState<string | null>(null);
   
   // Listen for rule-based popups and focus-mode popups
   useEffect(() => {
@@ -26,6 +27,22 @@ export function RichMediaPopup() {
       appName?: string;
     }>) => {
       console.log("Received show-focus-popup event", event.detail);
+      
+      // Check if this is for the same app we just showed a popup for
+      // Extract app ID from the notification ID to prevent duplicate popups
+      const appIdMatch = event.detail.notificationId.match(/focus-mode-(.*?)-\d+/);
+      const currentAppId = appIdMatch ? appIdMatch[1] : null;
+      
+      // If this is the same app we just showed a popup for, don't show another one
+      if (currentAppId && currentAppId === lastShownAppId) {
+        console.log("Skipping duplicate popup for app:", currentAppId);
+        return;
+      }
+      
+      // Update the last shown app ID
+      if (currentAppId) {
+        setLastShownAppId(currentAppId);
+      }
       
       // Create a synthetic rule object to reuse the same popup system
       const focusRule: Rule = {
@@ -83,6 +100,8 @@ export function RichMediaPopup() {
       console.log("Notification dismissed event received:", event.detail);
       if (currentRule && event.detail === currentRule.id) {
         setIsOpen(false);
+        // Reset last shown app ID when popup is dismissed
+        setLastShownAppId(null);
       }
     };
     
@@ -98,7 +117,7 @@ export function RichMediaPopup() {
         handleNotificationDismissed as EventListener
       );
     };
-  }, [currentRule]);
+  }, [currentRule, lastShownAppId]);
   
   // Handle image loading
   const handleImageLoad = () => {
@@ -113,6 +132,7 @@ export function RichMediaPopup() {
   
   const handleDismiss = () => {
     setIsOpen(false);
+    setLastShownAppId(null); // Reset last shown app ID when popup is dismissed
     
     // Dispatch an event that the notification was dismissed
     if (currentRule) {
@@ -125,38 +145,51 @@ export function RichMediaPopup() {
   
   if (!currentRule) return null;
   
+  // Get app name from notification ID
+  const appNameFromRule = currentRule.action.text.match(/([^.]+) is not in your whitelist/)?.[1] || "This app";
+  
+  // Extract motivational text (everything after the standard message)
+  const standardMessage = `You're outside your focus zone. ${appNameFromRule} is not in your whitelist.`;
+  let motivationalText = "";
+  
+  if (currentRule.action.text !== standardMessage && 
+      currentRule.action.text.includes(standardMessage)) {
+    motivationalText = currentRule.action.text.replace(standardMessage, "").trim();
+  } else if (!currentRule.action.text.includes("not in your whitelist")) {
+    motivationalText = currentRule.action.text;
+  }
+  
   const dialogContent = (
     <>
-      <div className="relative">
-        {/* Improved Image Display */}
-        {currentRule.action.media?.type === 'image' && currentRule.action.media.content && (
-          <div className="w-full overflow-hidden flex justify-center">
-            <img
-              src={currentRule.action.media.content}
-              alt="Focus reminder"
-              className="max-w-full h-auto object-contain rounded-t-lg"
-              style={{ maxHeight: '240px' }}
-              onLoad={handleImageLoad}
-              onError={handleImageError}
-            />
-          </div>
-        )}
-        
-        {currentRule.action.media?.type === 'video' && currentRule.action.media.content && (
-          <div className="w-full overflow-hidden flex justify-center">
-            <video
-              src={currentRule.action.media.content}
-              autoPlay
-              muted
-              loop
-              className="max-w-full h-auto object-contain rounded-t-lg"
-              style={{ maxHeight: '240px' }}
-              onLoadedData={handleImageLoad}
-              onError={handleImageError}
-            />
-          </div>
-        )}
-        
+      {/* Image/Video Display - Now at the top with proper styling */}
+      {currentRule.action.media?.type === 'image' && currentRule.action.media.content && (
+        <div className="overflow-hidden flex justify-center w-full">
+          <img
+            src={currentRule.action.media.content}
+            alt="Focus reminder"
+            className="w-full max-h-[240px] object-contain rounded-t-lg"
+            onLoad={handleImageLoad}
+            onError={handleImageError}
+          />
+        </div>
+      )}
+      
+      {currentRule.action.media?.type === 'video' && currentRule.action.media.content && (
+        <div className="overflow-hidden flex justify-center w-full">
+          <video
+            src={currentRule.action.media.content}
+            autoPlay
+            muted
+            loop
+            className="w-full max-h-[240px] object-contain rounded-t-lg"
+            onLoadedData={handleImageLoad}
+            onError={handleImageError}
+          />
+        </div>
+      )}
+      
+      <div className="p-6 space-y-4 relative">
+        {/* Close button */}
         <Button
           variant="ghost"
           size="icon"
@@ -166,22 +199,29 @@ export function RichMediaPopup() {
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </Button>
-      </div>
-      
-      <div className="p-6 space-y-4">
-        <div className="space-y-2">
+        
+        <div className="space-y-3">
           <div className="flex items-center gap-2">
             {showIcon && (
               <Focus className="h-5 w-5 text-amber-400" />
             )}
-            <h3 className="text-xl font-semibold">{currentRule.name}</h3>
+            <h3 className="text-xl font-semibold">Focus Mode Alert</h3>
           </div>
+          
+          {/* Main alert message */}
           <p className="text-muted-foreground">
-            {currentRule.action.text}
+            {standardMessage}
           </p>
+          
+          {/* Motivational message if present */}
+          {motivationalText && (
+            <p className="text-sm font-medium pt-2 italic">
+              "{motivationalText}"
+            </p>
+          )}
         </div>
         
-        <div className="flex justify-end">
+        <div className="flex justify-end pt-2">
           <Button onClick={handleDismiss}>
             Dismiss
           </Button>
@@ -196,9 +236,10 @@ export function RichMediaPopup() {
       {displayType === 'alert' && isOpen && (
         <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
           <AlertDialogContent 
-            className="min-w-[500px] p-0 overflow-hidden bg-background rounded-lg border shadow-lg animate-in fade-in-0 zoom-in-95"
+            className="min-w-[500px] p-0 overflow-hidden bg-background rounded-lg border animate-in fade-in-0 zoom-in-95"
             style={{ 
-              boxShadow: '0 10px 25px -5px rgba(26, 31, 44, 0.1), 0 8px 10px -6px rgba(26, 31, 44, 0.1)'
+              boxShadow: '0 10px 25px -5px rgba(26, 31, 44, 0.2), 0 8px 10px -6px rgba(26, 31, 44, 0.15)',
+              borderRadius: '12px'
             }}
           >
             {dialogContent}

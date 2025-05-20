@@ -36,6 +36,8 @@ const NOTIFICATION_COOLDOWN = 1500; // 1.5 seconds cooldown between notification
 const DEFAULT_WHITELIST_APPS = ['Mindful Desktop Companion', 'Electron', 'electron', 'chrome-devtools']; 
 // Idle timeout - trigger notification after this amount of time in a different app
 const IDLE_RESET_TIMEOUT = 30000; // 30 seconds
+// App switch memory - don't show duplicate notifications until this time passes
+const APP_SWITCH_MEMORY = 60000; // 60 seconds
 
 export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
@@ -71,6 +73,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   
   // Track the last time a notification was shown for each app
   const appNotificationTimestamps = useRef<Record<string, number>>({});
+  const [processedAppSwitches, setProcessedAppSwitches] = useState<Map<string, number>>(new Map());
   
   // Track if we already processed a switch to avoid duplicate popups
   const [processedSwitches, setProcessedSwitches] = useState<Set<string>>(new Set());
@@ -838,20 +841,14 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setLastNotifiedApp(appName);
     
     // Get the custom image and text from state
-    const imageUrl = customImage || 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b';
+    const imageUrl = customImage || null; // Don't use a default image
     const alertText = customText || `You're outside your focus zone. ${appName} is not in your whitelist.`;
     
     // Set current alert app name and show the alert
     setCurrentAlertApp(appName);
     setShowingAlert(true);
     
-    // Mark this app as having had a notification shown
-    setNotificationShown(prev => ({
-      ...prev,
-      [appName]: true
-    }));
-    
-    // Create a unique notification ID with timestamp
+    // Create a unique notification ID with timestamp and app name
     const notificationId = `focus-mode-${appName}-${Date.now()}`;
     
     // Use rich media popup for focus mode alerts
@@ -860,13 +857,13 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         title: "Focus Mode Alert",
         body: alertText.replace('{app}', appName),
         notificationId: notificationId,
-        mediaType: 'image',
+        mediaType: imageUrl ? 'image' : 'none',
         mediaContent: imageUrl,
         appName: appName
       }
     });
     
-    console.log("Dispatching focus popup event with rich media");
+    console.log("Dispatching focus popup event");
     window.dispatchEvent(focusRuleEvent);
     
     // If we're in dim mode, apply dimming effect to the screen
@@ -877,7 +874,7 @@ export const FocusModeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Update the timestamp for this app's notification
     appNotificationTimestamps.current[appName] = Date.now();
     lastPopupShownTime.current = Date.now();
-  }, [customImage, customText, dimInsteadOfBlock, userId]);
+  }, [customImage, customText, dimInsteadOfBlock]);
 
   // Test the rich media focus mode popup
   const testFocusModePopup = useCallback(() => {

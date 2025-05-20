@@ -28,9 +28,13 @@ export function AppUsageList({ className }: AppUsageListProps) {
   
   useEffect(() => {
     const systemTray = SystemTrayService.getInstance();
+    const userId = user?.id || 'guest';
     
     // Subscribe to app usage updates
     const handleAppUsageUpdate = (appUsage: Array<{name: string, time: number, type: string, lastActiveTime?: number}>) => {
+      // Ensure we're only using this user's data
+      console.log(`Received app usage update for user: ${userId}`);
+      
       // Convert to formatted app usage items
       const formattedAppUsage: AppUsageItem[] = appUsage.map(app => ({
         name: app.name,
@@ -57,6 +61,11 @@ export function AppUsageList({ className }: AppUsageListProps) {
       setAppUsageData(sortedAppUsage);
       setIsLoading(false);
     };
+    
+    // Request user-specific app usage data
+    if (window.electron) {
+      window.electron.send('get-user-app-usage', { userId });
+    }
     
     systemTray.addAppUsageListener(handleAppUsageUpdate);
     
