@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import SystemTrayService from '@/services/SystemTrayService';
 import { toast } from "sonner";
@@ -23,7 +24,7 @@ interface FocusModeContextType {
 
 const FocusModeContext = createContext<FocusModeContextType | undefined>(undefined);
 
-// Define useFocusMode hook only once at the top level
+// Define the hook here - removed the duplicate definition at the end of the file
 export const useFocusMode = () => {
   const context = useContext(FocusModeContext);
   if (context === undefined) {
