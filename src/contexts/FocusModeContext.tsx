@@ -23,6 +23,7 @@ interface FocusModeContextType {
 
 const FocusModeContext = createContext<FocusModeContextType | undefined>(undefined);
 
+// Define useFocusMode hook only once at the top level
 export const useFocusMode = () => {
   const context = useContext(FocusModeContext);
   if (context === undefined) {
